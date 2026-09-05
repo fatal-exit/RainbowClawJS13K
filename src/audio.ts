@@ -407,7 +407,7 @@ export class AudioEngine {
   public playSqueak(rank = 1): void {
     if (!this.sfxReady()) return;
     const t = this.ctx!.currentTime;
-    const pitches = [659.25, 698.46, 830.61, 880.0, 987.77, 1046.5, 1318.5];
+    const pitches = [659, 698, 831, 880, 988, 1047, 1319];
     const baseFreq = pitches[(rank - 1) % pitches.length];
     const osc = this.ctx!.createOscillator();
     const gain = this.ctx!.createGain();
@@ -442,7 +442,7 @@ export class AudioEngine {
    * Unicorn Dropped into Chute (Triumphant Rainbow Chime)
    */
   public playChuteDrop(): void {
-    this.playNotes([659.25, 830.61, 987.77, 1318.51], 'triangle', 0.05, 0.25, 0.28);
+    this.playNotes([659, 831, 988, 1319], 'triangle', 0.05, 0.25, 0.28);
   }
 
   /**
@@ -451,36 +451,37 @@ export class AudioEngine {
   public playCombo(mult: number): void {
     if (!this.sfxReady()) return;
     this.synthSweep('sine', 180, 45, 0.7, 0.26);
-    const chord = [523.25, 659.25, 830.61, 987.77, 1318.51, 1661.22];
+    const chord = [523, 659, 831, 988, 1319, 1661];
     const steps = Math.min(chord.length, Math.max(3, Math.floor(mult) + 1));
+    this.playNotes(chord.slice(0, steps), 'sawtooth', 0.04, 0.2, 0.22);
   }
 
   /**
    * Cash / Coin Register Chime for Shop Purchases
    */
   public playCoin(): void {
-    this.playNotes([987.77, 1318.51], 'sine', 0.06, 0.2, 0.32);
+    this.playNotes([988, 1319], 'sine', 0.06, 0.2, 0.32);
   }
 
   /**
    * UI Click / Selection Tick
    */
   public playUI(): void {
-    this.playNotes([1174.66], 'sine', 0, 0.04, 0.18);
+    this.playNotes([1175], 'sine', 0, 0.04, 0.18);
   }
 
   /**
    * Quota Cleared Fanfare
    */
   public playQuotaSuccess(): void {
-    this.playNotes([329.63, 415.3, 493.88, 659.25, 830.61, 987.77, 1318.51], 'sawtooth', 0.06, 0.25, 0.25);
+    this.playNotes([330, 415, 494, 659, 831, 988, 1319], 'sawtooth', 0.06, 0.25, 0.25);
   }
 
   /**
    * Quota Failed Lament
    */
   public playGameOver(): void {
-    this.playNotes([659.25, 622.25, 587.33, 554.37, 493.88], 'sawtooth', 0.1, 0.2, 0.3);
+    this.playNotes([659, 622, 587, 554, 494], 'sawtooth', 0.1, 0.2, 0.3);
   }
 }
 

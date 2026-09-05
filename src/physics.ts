@@ -51,6 +51,7 @@ export class PhysicsEngine {
   // Machine State
   public state: ClawState = 'IDLE_AIM';
   public stateTimer = 0;
+  public releasePhase = 0;
 
   // Plushies in the prize pit
   public plushies: UnicornPlush[] = [];
@@ -73,6 +74,7 @@ export class PhysicsEngine {
     this.targetProngAngle = 0.85;
     this.carriageTargetX = 220;
     this.capturedThisDrop = [];
+    this.releasePhase = 0;
   }
 
   public dropClaw(): boolean {
@@ -140,6 +142,7 @@ export class PhysicsEngine {
         this.swingAngVel = 0;
         this.state = 'RELEASING';
         this.stateTimer = 0;
+        this.releasePhase = this.plushies.some((p) => p.isGrabbed) ? 1 : 0;
       }
     } else {
       this.carriageVx *= 0.85;
@@ -233,16 +236,11 @@ export class PhysicsEngine {
         this.stateTimer = 0;
       }
     } else if (this.state === 'RELEASING') {
-      const hasPlush = this.plushies.some((p) => p.isGrabbed);
-      const chuteDepthLen = 135;
-
-      if (hasPlush) {
-        // Phase 1: Descend deep inside the chute opening before opening tines
-        if (this.cableLength < chuteDepthLen && this.stateTimer < 0.6) {
+      if (this.releasePhase === 1) {
+        if (this.cableLength < 135) {
           this.cableLength += 220 * stats.winchSpeed * dt;
-          this.targetProngAngle = 0.18; // Keep grip locked while descending
+          this.targetProngAngle = 0.18;
         } else {
-          // Phase 2: Once inside chute opening, open prongs to drop plush safely
           this.targetProngAngle = 0.85;
           for (const u of this.plushies) {
             if (u.isGrabbed) {
@@ -252,18 +250,21 @@ export class PhysicsEngine {
               u.vy = 40;
             }
           }
-          // Phase 3: Retract cable back to ceiling
-          if (this.stateTimer > 0.8) {
-            this.cableLength -= 240 * stats.winchSpeed * dt;
-            if (this.cableLength <= this.minCableLen) {
-              this.cableLength = this.minCableLen;
-              this.state = 'FINISHED';
-              this.mechanicalState = 'OPEN';
-            }
+          this.releasePhase = 2;
+          this.stateTimer = 0;
+        }
+      } else if (this.releasePhase === 2) {
+        this.targetProngAngle = 0.85;
+        if (this.stateTimer > 0.2) {
+          this.cableLength -= 240 * stats.winchSpeed * dt;
+          if (this.cableLength <= this.minCableLen) {
+            this.cableLength = this.minCableLen;
+            this.state = 'FINISHED';
+            this.mechanicalState = 'OPEN';
+            this.releasePhase = 0;
           }
         }
       } else {
-        // Empty claw: quick return click and finish
         this.targetProngAngle = 0.85;
         if (this.stateTimer >= 0.25) {
           this.state = 'FINISHED';

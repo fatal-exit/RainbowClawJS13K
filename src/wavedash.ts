@@ -101,7 +101,7 @@ export class WavedashService {
         if (id) {
           const raw = await sdk.listLeaderboardEntries(id, 0, limit, false);
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const entries: any[] = Array.isArray(raw?.data) ? raw.data : (raw?.entries || []);
+          const entries: any[] = Array.isArray(raw?.data) ? raw.data : (Array.isArray(raw?.entries) ? raw.entries : (Array.isArray(raw) ? raw : []));
           return entries.map((e, i) => ({
             rank: e.globalRank || i + 1,
             score: e.score || 0,

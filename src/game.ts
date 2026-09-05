@@ -33,6 +33,8 @@ const drawBtn = (
   ctx.strokeRect(b.x, b.y, b.w, b.h);
   ctx.fillStyle = fg;
   ctx.font = font;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
   ctx.fillText(text, b.x + b.w / 2, b.y + b.h / 2);
 };
 
@@ -253,6 +255,15 @@ export class Game {
           if (inBox(card, px, py)) {
             if (!card.item.purchased && this.stats.cash >= card.item.cost) {
               applyShopPurchase(card.item, this.stats);
+              if (card.item.id === 'plush_overflow') {
+                for (let k = 0; k < 6; k++) {
+                  const variety = this.pickRandomVariety(this.stats.rarityLuck);
+                  const isGolden = Math.random() < this.stats.goldenChance;
+                  const x = 90 + Math.random() * (this.physics.pitRightX - 100);
+                  const y = 140 + Math.random() * (this.physics.pitFloorY - 150);
+                  this.physics.plushies.push(createUnicorn(variety, x, y, isGolden));
+                }
+              }
               card.item.purchased = true;
               audio.playCoin();
               this.particles.emitRainbowBurst(card.x + card.w / 2, card.y + card.h / 2, 20, 80);
@@ -611,16 +622,14 @@ export class Game {
     ctx.fillText('GRABS:', 64, 12);
 
     for (let i = 0; i < this.stats.grabAttemptsMax; i++) {
-      const dotX = 112 + i * 9;
+      ctx.beginPath();
       if (i < this.stats.grabAttemptsLeft) {
         ctx.fillStyle = `hsl(${(time * 200 + i * 40) % 360}, 100%, 65%)`;
-        ctx.beginPath();
-        ctx.arc(dotX, 12, 3, 0, 6.28);
+        ctx.arc(112 + i * 9, 12, 3, 0, 6.28);
         ctx.fill();
       } else {
         ctx.strokeStyle = '#4a5065';
-        ctx.beginPath();
-        ctx.arc(dotX, 12, 2.5, 0, 6.28);
+        ctx.arc(112 + i * 9, 12, 2.5, 0, 6.28);
         ctx.stroke();
       }
     }
@@ -868,11 +877,7 @@ export class Game {
     ctx.font = 'bold 10px monospace';
     ctx.fillStyle = '#8a90a6';
     ctx.textAlign = 'left';
-    ctx.fillText('RANK', 45, 60);
-    ctx.fillText('PLAYER', 110, 60);
-    ctx.fillText('DAY', 240, 60);
-    ctx.fillText('SCORE', 310, 60);
-
+    ([['RANK', 45], ['PLAYER', 110], ['DAY', 240], ['SCORE', 310]] as const).forEach(([t, x]) => ctx.fillText(t, x, 60));
     ctx.strokeStyle = '#222634';
     ctx.beginPath();
     ctx.moveTo(40, 68);
@@ -886,7 +891,6 @@ export class Game {
       const ry = 88 + i * 26;
 
       ctx.fillStyle = i === 0 ? '#ffec40' : '#ffffff';
-      ctx.font = 'bold 10px monospace';
       ctx.fillText(`#${entry.rank}`, 45, ry);
       ctx.fillText(entry.name, 110, ry);
       ctx.fillText(`Day ${entry.day}`, 240, ry);
@@ -923,13 +927,17 @@ export class Game {
     }
   }
 
-  private drawWrappedText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, _maxWidth?: number, lineHeight = 13): void {
-    const parts = text.split('. ');
-    if (parts.length > 1 && text.length > 18) {
-      ctx.fillText(parts[0] + '.', x, y);
-      ctx.fillText(parts.slice(1).join('. '), x, y + lineHeight);
-    } else {
-      ctx.fillText(text, x, y + 6);
+  private drawWrappedText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth = 94, lineHeight = 12): void {
+    const words = text.split(' ');
+    let line = '', curY = y;
+    for (const w of words) {
+      if (line && ctx.measureText(line + w).width > maxWidth) {
+        ctx.fillText(line.trim(), x, curY);
+        line = '';
+        curY += lineHeight;
+      }
+      line += w + ' ';
     }
+    ctx.fillText(line.trim(), x, curY);
   }
 }
