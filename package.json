@@ -1,0 +1,18 @@
+{
+  "name": "rainbow-claw",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node build/dev-server.mjs",
+    "build": "node build/build-zip.mjs",
+    "wavedash:dev": "npm run build && npx wavedash dev",
+    "wavedash:push": "npm run build && npx wavedash build push"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "roadroller": "^2.1.0",
+    "terser": "^5.39.0",
+    "typescript": "^5.7.3"
+  }
+}
