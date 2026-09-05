@@ -18,6 +18,35 @@ import { wavedash, LeaderboardEntry } from './wavedash';
 
 export type GameScreen = 'TITLE' | 'PLAY' | 'SCORING' | 'SHOP' | 'LEADERBOARD' | 'GAMEOVER';
 
+const drawBtn = (
+  ctx: CanvasRenderingContext2D,
+  b: { x: number; y: number; w: number; h: number },
+  bg: string,
+  text: string,
+  fg = '#ffffff',
+  font = 'bold 11px monospace'
+): void => {
+  ctx.fillStyle = bg;
+  ctx.fillRect(b.x, b.y, b.w, b.h);
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(b.x, b.y, b.w, b.h);
+  ctx.fillStyle = fg;
+  ctx.font = font;
+  ctx.fillText(text, b.x + b.w / 2, b.y + b.h / 2);
+};
+
+const drawGrid = (ctx: CanvasRenderingContext2D): void => {
+  ctx.strokeStyle = '#12141c';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 0; i <= 400; i += 20) {
+    ctx.moveTo(i, 0); ctx.lineTo(i, 300);
+    if (i <= 300) { ctx.moveTo(0, i); ctx.lineTo(400, i); }
+  }
+  ctx.stroke();
+};
+
 export class Game {
   public ctx: CanvasRenderingContext2D;
   public physics: PhysicsEngine;
@@ -46,10 +75,10 @@ export class Game {
   public inputDir = 0;
   public dropPressed = false;
 
-  // UI Touch Hitboxes
-  private btnLeft = { x: 18, y: 242, w: 46, h: 48 };
-  private btnRight = { x: 70, y: 242, w: 46, h: 48 };
-  private btnDrop = { x: 300, y: 242, w: 84, h: 48 };
+  // UI Touch Hitboxes (Control deck at Y=238..300)
+  private btnLeft = { x: 18, y: 245, w: 48, h: 46 };
+  private btnRight = { x: 72, y: 245, w: 48, h: 46 };
+  private btnDrop = { x: 288, y: 245, w: 96, h: 46 };
   private btnAudio = { x: 366, y: 4, w: 28, h: 18 };
 
   // Shop button hitboxes
@@ -155,74 +184,47 @@ export class Game {
   }
 
   private pickRandomVariety(luck: number): (typeof UNICORN_VARIETIES)[0] {
-    // Weighted selection favoring common early, with high tiers boosted by luck
-    const weights = [
-      40,                    // Cotton Spark (Common)
-      25,                    // Bubble Dream (Uncommon)
-      18,                    // Sunset Velvet (Uncommon)
-      12 * luck,             // Cyber Chrome (Rare)
-      7 * luck,              // Shadow Twilight (Epic)
-      3 * luck,              // Solar Radiant (Legendary)
-      1 * luck,              // Prism Alicorn (Mythic)
-    ];
-
-    const totalWeight = weights.reduce((a, b) => a + b, 0);
-    let rand = Math.random() * totalWeight;
-
+    const weights = [40, 25, 18, 12 * luck, 7 * luck, 3 * luck, luck];
+    let rand = Math.random() * weights.reduce((a, b) => a + b, 0);
     for (let i = 0; i < UNICORN_VARIETIES.length; i++) {
-      if (rand < weights[i]) return UNICORN_VARIETIES[i];
-      rand -= weights[i];
+      if ((rand -= weights[i]) < 0) return UNICORN_VARIETIES[i];
     }
     return UNICORN_VARIETIES[0];
   }
 
   // --- INPUT HANDLING ---
   private bindInput(canvas: HTMLCanvasElement): void {
-    // Keyboard Input
+    const inBox = (b: { x: number; y: number; w: number; h: number }, x: number, y: number) =>
+      x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h;
+
     window.addEventListener('keydown', (e) => {
       audio.ensureContext();
       if (e.code === 'ArrowLeft' || e.code === 'KeyA') this.inputDir = -1;
       if (e.code === 'ArrowRight' || e.code === 'KeyD') this.inputDir = 1;
-      if (e.code === 'Space' || e.code === 'ArrowDown' || e.code === 'KeyS') {
-        this.handleDropAction();
-      }
-      if (e.code === 'Enter') {
-        this.handleConfirmAction();
-      }
-      if (e.code === 'KeyM') {
-        audio.toggleMute();
-      }
+      if (e.code === 'Space' || e.code === 'ArrowDown' || e.code === 'KeyS') this.handleDropAction();
+      if (e.code === 'Enter') this.handleConfirmAction();
+      if (e.code === 'KeyM') audio.toggleMute();
     });
 
     window.addEventListener('keyup', (e) => {
-      if ((e.code === 'ArrowLeft' || e.code === 'KeyA') && this.inputDir === -1) {
-        this.inputDir = 0;
-      }
-      if ((e.code === 'ArrowRight' || e.code === 'KeyD') && this.inputDir === 1) {
+      if (((e.code === 'ArrowLeft' || e.code === 'KeyA') && this.inputDir === -1) ||
+          ((e.code === 'ArrowRight' || e.code === 'KeyD') && this.inputDir === 1)) {
         this.inputDir = 0;
       }
     });
 
-    // Pointer / Touch Input (Desktop Mouse + Mobile Responsive Touch)
-    const handlePointerDown = (clientX: number, clientY: number) => {
+    const onDown = (clientX: number, clientY: number) => {
       audio.ensureContext();
       const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-      const px = (clientX - rect.left) * scaleX;
-      const py = (clientY - rect.top) * scaleY;
+      const px = (clientX - rect.left) * (canvas.width / rect.width);
+      const py = (clientY - rect.top) * (canvas.height / rect.height);
 
-      // Audio toggle button
-      if (
-        px >= this.btnAudio.x && px <= this.btnAudio.x + this.btnAudio.w &&
-        py >= this.btnAudio.y && py <= this.btnAudio.y + this.btnAudio.h
-      ) {
+      if (inBox(this.btnAudio, px, py)) {
         audio.toggleMute();
         return;
       }
 
       if (this.screen === 'TITLE') {
-        // Check leaderboard button
         if (px >= 130 && px <= 270 && py >= 240 && py <= 275) {
           this.openLeaderboard();
         } else {
@@ -247,12 +249,8 @@ export class Game {
       }
 
       if (this.screen === 'SHOP') {
-        // Check card clicks
         for (const card of this.shopCards) {
-          if (
-            px >= card.x && px <= card.x + card.w &&
-            py >= card.y && py <= card.y + card.h
-          ) {
+          if (inBox(card, px, py)) {
             if (!card.item.purchased && this.stats.cash >= card.item.cost) {
               applyShopPurchase(card.item, this.stats);
               card.item.purchased = true;
@@ -265,11 +263,7 @@ export class Game {
           }
         }
 
-        // Reroll button
-        if (
-          px >= this.btnReroll.x && px <= this.btnReroll.x + this.btnReroll.w &&
-          py >= this.btnReroll.y && py <= this.btnReroll.y + this.btnReroll.h
-        ) {
+        if (inBox(this.btnReroll, px, py)) {
           if (this.stats.cash >= 2) {
             this.stats.cash -= 2;
             this.shopOffer = generateShopOffer(this.stats);
@@ -278,11 +272,7 @@ export class Game {
           return;
         }
 
-        // Next Day button
-        if (
-          px >= this.btnNextDay.x && px <= this.btnNextDay.x + this.btnNextDay.w &&
-          py >= this.btnNextDay.y && py <= this.btnNextDay.y + this.btnNextDay.h
-        ) {
+        if (inBox(this.btnNextDay, px, py)) {
           this.startNextDay();
           return;
         }
@@ -290,84 +280,41 @@ export class Game {
 
       if (this.screen === 'SCORING') {
         if (this.scoringStep >= 4) {
-          if (this.quotaBeaten) {
-            this.openShop();
-          } else {
-            this.screen = 'GAMEOVER';
-          }
+          if (this.quotaBeaten) this.openShop();
+          else this.screen = 'GAMEOVER';
         }
         return;
       }
 
       if (this.screen === 'PLAY') {
-        // Mobile On-Screen Buttons
-        if (
-          px >= this.btnLeft.x && px <= this.btnLeft.x + this.btnLeft.w &&
-          py >= this.btnLeft.y && py <= this.btnLeft.y + this.btnLeft.h
-        ) {
+        if (inBox(this.btnLeft, px, py)) {
           this.inputDir = -1;
           audio.playClawMove();
           return;
         }
-        if (
-          px >= this.btnRight.x && px <= this.btnRight.x + this.btnRight.w &&
-          py >= this.btnRight.y && py <= this.btnRight.y + this.btnRight.h
-        ) {
+        if (inBox(this.btnRight, px, py)) {
           this.inputDir = 1;
           audio.playClawMove();
           return;
         }
-        if (
-          px >= this.btnDrop.x && px <= this.btnDrop.x + this.btnDrop.w &&
-          py >= this.btnDrop.y && py <= this.btnDrop.y + this.btnDrop.h
-        ) {
+        if (inBox(this.btnDrop, px, py)) {
           this.handleDropAction();
           return;
         }
 
-        // Direct Touch Drag on Upper Gantry Rail only when aiming
         if (py <= 160 && this.physics.state === 'IDLE_AIM') {
-          this.physics.carriageX = Math.max(
-            this.physics.minCarriageX,
-            Math.min(this.physics.maxCarriageX, px)
-          );
+          this.physics.carriageX = Math.max(this.physics.minCarriageX, Math.min(this.physics.maxCarriageX, px));
           return;
         }
 
-        // Single-tap anywhere in the cabinet to lock/grab during sequence
         if (this.physics.state === 'RAISING' || this.physics.state === 'CLOSING' || this.physics.state === 'LOWERING') {
           this.handleDropAction();
         }
       }
     };
 
-    const handlePointerUp = () => {
-      this.inputDir = 0;
-    };
-
-    canvas.addEventListener('mousedown', (e) => handlePointerDown(e.clientX, e.clientY));
-    window.addEventListener('mouseup', handlePointerUp);
-
-    canvas.addEventListener(
-      'touchstart',
-      (e) => {
-        if (e.touches.length > 0) {
-          const t = e.touches[0];
-          handlePointerDown(t.clientX, t.clientY);
-        }
-        e.preventDefault();
-      },
-      { passive: false }
-    );
-
-    window.addEventListener(
-      'touchend',
-      (e) => {
-        handlePointerUp();
-        e.preventDefault();
-      },
-      { passive: false }
-    );
+    canvas.addEventListener('pointerdown', (e) => onDown(e.clientX, e.clientY));
+    window.addEventListener('pointerup', () => { this.inputDir = 0; });
   }
 
   private handleDropAction(): void {
@@ -588,23 +535,8 @@ export class Game {
 
   // --- TITLE SCREEN ---
   private renderTitle(ctx: CanvasRenderingContext2D, time: number): void {
-    // Retro grid / marquee background
-    ctx.strokeStyle = '#12141c';
-    ctx.lineWidth = 1;
-    for (let x = 0; x < 400; x += 20) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, 300);
-      ctx.stroke();
-    }
-    for (let y = 0; y < 300; y += 20) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(400, y);
-      ctx.stroke();
-    }
+    drawGrid(ctx);
 
-    // Rainbow Marquee Title: "RAINBOW CLAW"
     const titleHue = (time * 160) % 360;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -617,14 +549,11 @@ export class Game {
     ctx.fillStyle = '#a0a5b8';
     ctx.fillText('BALATRO-STYLE UNICORN CLAW MACHINE', 200, 95);
 
-    // Pixel Unicorn Showcase
     const previewU = createUnicorn(UNICORN_VARIETIES[6], 200, 140, true);
     previewU.angle = Math.sin(time * 3) * 0.15;
     drawUnicorn(ctx, previewU, time, true);
 
-    // Start prompt
-    const blink = Math.floor(time * 2.5) % 2 === 0;
-    if (blink) {
+    if (Math.floor(time * 2.5) % 2 === 0) {
       ctx.font = 'bold 13px monospace';
       ctx.fillStyle = '#ffffff';
       ctx.fillText('PRESS SPACE OR TAP TO PLAY', 200, 205);
@@ -634,42 +563,26 @@ export class Game {
     ctx.fillStyle = '#7a8095';
     ctx.fillText('Desktop: Arrows/AD to Move • Space/S to Drop', 200, 226);
 
-    // Leaderboard button
-    ctx.fillStyle = '#1c1f2b';
-    ctx.fillRect(130, 246, 140, 30);
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(130, 246, 140, 30);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 11px monospace';
-    ctx.fillText('★ LEADERBOARD ★', 200, 261);
-
-    // Sound toggle
+    drawBtn(ctx, { x: 130, y: 246, w: 140, h: 30 }, '#1c1f2b', '★ LEADERBOARD ★');
     this.renderAudioButton(ctx);
   }
 
   // --- PLAY SCREEN ---
   private renderPlay(ctx: CanvasRenderingContext2D, time: number): void {
-    // 1. Machine Background (Chute, Top Rail, Carriage, Cable)
     this.physics.drawMachineBackground(ctx, time);
 
-    // 2. Free Plush Unicorn Pile in Pit
     for (const u of this.physics.plushies) {
       if (!u.isGrabbed) drawUnicorn(ctx, u, time);
     }
 
-    // 3. Realistic 3-Prong Arc Claw Head
     this.physics.drawClawHead(ctx, time, this.stats);
 
-    // 4. Gripped Plushies (drawn held inside claw grasp)
     for (const u of this.physics.plushies) {
       if (u.isGrabbed) drawUnicorn(ctx, u, time);
     }
 
-    // 5. Cabinet Glass Frame & Reflection Streaks
     this.physics.drawMachineForeground(ctx);
 
-    // 6. Tension QTE Floating Prompt
     if (this.physics.mechanicalState === 'TENSION') {
       const qteHue = (time * 360) % 360;
       ctx.textAlign = 'center';
@@ -681,67 +594,48 @@ export class Game {
       ctx.fillText('⚡ TAP TO LOCK! ⚡', this.physics.hubX, this.physics.hubY - 25);
     }
 
-    // 7. Draw HUD (Day, Grabs, Score/Quota, Cash)
     this.renderHUD(ctx, time);
-
-    // 8. Draw Mobile Controls
     this.renderMobileControls(ctx);
-
-    // 9. Sound toggle
     this.renderAudioButton(ctx);
   }
 
   private renderHUD(ctx: CanvasRenderingContext2D, time: number): void {
-    // Top HUD bar
-    ctx.fillStyle = '#090a10';
-    ctx.fillRect(10, 2, 380, 20);
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(10, 2, 380, 20);
+    drawBtn(ctx, { x: 10, y: 2, w: 380, h: 20 }, '#090a10', '');
 
     ctx.font = 'bold 10px monospace';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
 
-    // Day
     ctx.fillStyle = '#ffffff';
     ctx.fillText(`DAY ${this.stats.day}`, 16, 12);
-
-    // Grabs remaining dots [● ● ● ○ ○]
     ctx.fillText('GRABS:', 64, 12);
+
     for (let i = 0; i < this.stats.grabAttemptsMax; i++) {
-      const active = i < this.stats.grabAttemptsLeft;
       const dotX = 112 + i * 9;
-      if (active) {
-        const dotHue = (time * 200 + i * 40) % 360;
-        ctx.fillStyle = `hsl(${dotHue}, 100%, 65%)`;
+      if (i < this.stats.grabAttemptsLeft) {
+        ctx.fillStyle = `hsl(${(time * 200 + i * 40) % 360}, 100%, 65%)`;
         ctx.beginPath();
-        ctx.arc(dotX, 12, 3, 0, Math.PI * 2);
+        ctx.arc(dotX, 12, 3, 0, 6.28);
         ctx.fill();
       } else {
         ctx.strokeStyle = '#4a5065';
         ctx.beginPath();
-        ctx.arc(dotX, 12, 2.5, 0, Math.PI * 2);
+        ctx.arc(dotX, 12, 2.5, 0, 6.28);
         ctx.stroke();
       }
     }
 
-    // Day Quota & Score
-    ctx.fillStyle = '#ffffff';
     const quotaPct = Math.min(1.0, this.stats.score / this.stats.quota);
     ctx.fillText(`GOAL: ${this.stats.score}/${this.stats.quota}`, 170, 12);
 
-    // Mini quota progress bar
     ctx.strokeStyle = '#333745';
     ctx.strokeRect(268, 8, 40, 8);
     ctx.fillStyle = quotaPct >= 1.0 ? '#40ff80' : '#ff4080';
     ctx.fillRect(269, 9, 38 * quotaPct, 6);
 
-    // Cash
     ctx.fillStyle = '#ffec40';
     ctx.fillText(`$${this.stats.cash}`, 320, 12);
 
-    // Haul preview count
     if (this.dayHaul.length > 0) {
       ctx.fillStyle = '#a0a5b8';
       ctx.font = '9px monospace';
@@ -753,26 +647,15 @@ export class Game {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    // Left Button
-    ctx.fillStyle = this.inputDir === -1 ? '#3a3f55' : '#141620';
-    ctx.fillRect(this.btnLeft.x, this.btnLeft.y, this.btnLeft.w, this.btnLeft.h);
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(this.btnLeft.x, this.btnLeft.y, this.btnLeft.w, this.btnLeft.h);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 18px monospace';
-    ctx.fillText('◄', this.btnLeft.x + this.btnLeft.w / 2, this.btnLeft.y + this.btnLeft.h / 2);
+    drawBtn(ctx, { x: 10, y: 238, w: 380, h: 60 }, '#0a0c12', '');
 
-    // Right Button
-    ctx.fillStyle = this.inputDir === 1 ? '#3a3f55' : '#141620';
-    ctx.fillRect(this.btnRight.x, this.btnRight.y, this.btnRight.w, this.btnRight.h);
-    ctx.strokeStyle = '#ffffff';
-    ctx.strokeRect(this.btnRight.x, this.btnRight.y, this.btnRight.w, this.btnRight.h);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 18px monospace';
-    ctx.fillText('►', this.btnRight.x + this.btnRight.w / 2, this.btnRight.y + this.btnRight.h / 2);
+    ctx.fillStyle = '#6a7490';
+    ctx.font = 'bold 9px monospace';
+    ctx.fillText('ARCADE CONTROLS: ◄ MOVE ► & DROP', 180, 265);
 
-    // Drop / Grab / QTE Lock Button
+    drawBtn(ctx, this.btnLeft, this.inputDir === -1 ? '#3a3f55' : '#141620', '◄', '#fff', 'bold 18px monospace');
+    drawBtn(ctx, this.btnRight, this.inputDir === 1 ? '#3a3f55' : '#141620', '►', '#fff', 'bold 18px monospace');
+
     const isDropping = this.physics.state !== 'IDLE_AIM';
     const canLock = (this.physics.state === 'RAISING' || this.physics.state === 'CLOSING') &&
       this.physics.plushies.some((p) => p.isGrabbed && !p.gripLocked);
@@ -789,33 +672,24 @@ export class Game {
       btnColor = '#109850';
     }
 
-    ctx.fillStyle = btnColor;
-    ctx.fillRect(this.btnDrop.x, this.btnDrop.y, this.btnDrop.w, this.btnDrop.h);
-    ctx.strokeStyle = '#ffffff';
-    ctx.strokeRect(this.btnDrop.x, this.btnDrop.y, this.btnDrop.w, this.btnDrop.h);
-    ctx.fillStyle = canLock && Math.floor(this.gameTime * 7) % 2 === 0 ? '#050508' : '#ffffff';
-    ctx.font = 'bold 12px monospace';
-    ctx.fillText(
+    drawBtn(
+      ctx,
+      this.btnDrop,
+      btnColor,
       btnText,
-      this.btnDrop.x + this.btnDrop.w / 2,
-      this.btnDrop.y + this.btnDrop.h / 2
+      canLock && Math.floor(this.gameTime * 7) % 2 === 0 ? '#050508' : '#ffffff',
+      'bold 12px monospace'
     );
   }
 
   private renderAudioButton(ctx: CanvasRenderingContext2D): void {
-    ctx.fillStyle = audio.isSoundMuted() ? '#441a1a' : '#1c1f2b';
-    ctx.fillRect(this.btnAudio.x, this.btnAudio.y, this.btnAudio.w, this.btnAudio.h);
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(this.btnAudio.x, this.btnAudio.y, this.btnAudio.w, this.btnAudio.h);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 9px monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(
-      audio.isSoundMuted() ? 'MUTED' : '♪ ON',
-      this.btnAudio.x + this.btnAudio.w / 2,
-      this.btnAudio.y + this.btnAudio.h / 2
+    drawBtn(
+      ctx,
+      this.btnAudio,
+      audio.isSoundMuted() ? '#441a1a' : '#1c1f2b',
+      audio.isSoundMuted() ? 'MUTED' : 'SFX♪',
+      '#ffffff',
+      'bold 9px monospace'
     );
   }
 
@@ -868,27 +742,11 @@ export class Game {
     // [ CHIPS ] x [ MULT ] = [ ROUND SCORE ]
     ctx.font = 'bold 15px monospace';
 
-    // Blue Chips Box
-    ctx.fillStyle = '#0055aa';
-    ctx.fillRect(60, 155, 95, 34);
-    ctx.strokeStyle = '#ffffff';
-    ctx.strokeRect(60, 155, 95, 34);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(`${Math.round(this.displayedChips)} CHIPS`, 107, 172);
-
-    // 'X' Operator
+    drawBtn(ctx, { x: 60, y: 155, w: 95, h: 34 }, '#0055aa', `${Math.round(this.displayedChips)} CHIPS`, '#fff', 'bold 15px monospace');
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 18px monospace';
     ctx.fillText('×', 175, 172);
-
-    // Red Multiplier Box
-    ctx.fillStyle = '#aa0033';
-    ctx.fillRect(195, 155, 85, 34);
-    ctx.strokeStyle = '#ffffff';
-    ctx.strokeRect(195, 155, 85, 34);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 15px monospace';
-    ctx.fillText(`${this.displayedMult.toFixed(1)} MULT`, 237, 172);
+    drawBtn(ctx, { x: 195, y: 155, w: 85, h: 34 }, '#aa0033', `${this.displayedMult.toFixed(1)} MULT`, '#fff', 'bold 15px monospace');
 
     // Final Round Score
     ctx.font = '900 22px monospace';
@@ -984,59 +842,29 @@ export class Game {
 
       // Price / Buy Button
       const canAfford = this.stats.cash >= item.cost;
-      const btnY = cy + cardH - 28;
-      ctx.fillStyle = item.purchased
-        ? '#222530'
-        : canAfford ? '#e02060' : '#3a202c';
-      ctx.fillRect(cx + 12, btnY, cardW - 24, 20);
-      ctx.strokeStyle = '#ffffff';
-      ctx.strokeRect(cx + 12, btnY, cardW - 24, 20);
-
-      ctx.font = 'bold 10px monospace';
-      ctx.fillStyle = item.purchased
-        ? '#555a6a'
-        : canAfford ? '#ffffff' : '#888';
-      ctx.fillText(
+      drawBtn(
+        ctx,
+        { x: cx + 12, y: cy + cardH - 28, w: cardW - 24, h: 20 },
+        item.purchased ? '#222530' : canAfford ? '#e02060' : '#3a202c',
         item.purchased ? 'OWNED' : `BUY $${item.cost}`,
-        cx + cardW / 2,
-        btnY + 10
+        item.purchased ? '#555a6a' : canAfford ? '#ffffff' : '#888',
+        'bold 10px monospace'
       );
     }
 
-    // Bottom Navigation Buttons: Reroll & Next Day
-    // Reroll
-    ctx.fillStyle = this.stats.cash >= 2 ? '#252a3b' : '#141620';
-    ctx.fillRect(this.btnReroll.x, this.btnReroll.y, this.btnReroll.w, this.btnReroll.h);
-    ctx.strokeStyle = '#ffffff';
-    ctx.strokeRect(this.btnReroll.x, this.btnReroll.y, this.btnReroll.w, this.btnReroll.h);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 11px monospace';
-    ctx.fillText('REROLL ($2)', this.btnReroll.x + this.btnReroll.w / 2, this.btnReroll.y + this.btnReroll.h / 2);
-
-    // Next Day
-    ctx.fillStyle = '#00aa55';
-    ctx.fillRect(this.btnNextDay.x, this.btnNextDay.y, this.btnNextDay.w, this.btnNextDay.h);
-    ctx.strokeStyle = '#ffffff';
-    ctx.strokeRect(this.btnNextDay.x, this.btnNextDay.y, this.btnNextDay.w, this.btnNextDay.h);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 11px monospace';
-    ctx.fillText('NEXT DAY ►', this.btnNextDay.x + this.btnNextDay.w / 2, this.btnNextDay.y + this.btnNextDay.h / 2);
+    drawBtn(ctx, this.btnReroll, this.stats.cash >= 2 ? '#252a3b' : '#141620', 'REROLL ($2)');
+    drawBtn(ctx, this.btnNextDay, '#00aa55', 'NEXT DAY ►');
   }
 
   // --- LEADERBOARD SCREEN ---
   private renderLeaderboard(ctx: CanvasRenderingContext2D, time: number): void {
-    ctx.fillStyle = '#06070b';
-    ctx.fillRect(0, 0, 400, 300);
-
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    const lbHue = (time * 180) % 360;
     ctx.font = '900 18px monospace';
-    ctx.fillStyle = `hsl(${lbHue}, 100%, 65%)`;
+    ctx.fillStyle = `hsl(${(time * 180) % 360}, 100%, 65%)`;
     ctx.fillText('★ WAVEDASH LEADERBOARD ★', 200, 30);
 
-    // Table Header
     ctx.font = 'bold 10px monospace';
     ctx.fillStyle = '#8a90a6';
     ctx.textAlign = 'left';
@@ -1051,15 +879,7 @@ export class Game {
     ctx.lineTo(360, 68);
     ctx.stroke();
 
-    // Table Rows
-    const list = this.leaderboard.length > 0
-      ? this.leaderboard
-      : [
-          { rank: 1, name: 'ArcadeAce', score: 8500, day: 5 },
-          { rank: 2, name: 'PrismQueen', score: 5400, day: 4 },
-          { rank: 3, name: 'ClawMaster', score: 2800, day: 3 },
-          { rank: 4, name: 'NeonPony', score: 1200, day: 2 },
-        ];
+    const list = this.leaderboard;
 
     for (let i = 0; i < Math.min(6, list.length); i++) {
       const entry = list[i];
@@ -1073,7 +893,6 @@ export class Game {
       ctx.fillText(`${entry.score}`, 310, ry);
     }
 
-    // Back prompt
     ctx.textAlign = 'center';
     ctx.font = 'bold 11px monospace';
     ctx.fillStyle = '#ffffff';
@@ -1082,9 +901,6 @@ export class Game {
 
   // --- GAMEOVER SCREEN ---
   private renderGameOver(ctx: CanvasRenderingContext2D, time: number): void {
-    ctx.fillStyle = '#06070b';
-    ctx.fillRect(0, 0, 400, 300);
-
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
@@ -1100,37 +916,20 @@ export class Game {
     ctx.fillStyle = '#ffec40';
     ctx.fillText(`FINAL SCORE: ${this.stats.score + Math.round(this.displayedScore)}`, 200, 150);
 
-    const blink = Math.floor(time * 3) % 2 === 0;
-    if (blink) {
+    if (Math.floor(time * 3) % 2 === 0) {
       ctx.font = 'bold 13px monospace';
       ctx.fillStyle = '#ffffff';
       ctx.fillText('PRESS SPACE OR TAP TO RETRY', 200, 220);
     }
   }
 
-  private drawWrappedText(
-    ctx: CanvasRenderingContext2D,
-    text: string,
-    x: number,
-    y: number,
-    maxWidth: number,
-    lineHeight: number
-  ): void {
-    const words = text.split(' ');
-    let line = '';
-    let curY = y;
-
-    for (let n = 0; n < words.length; n++) {
-      const testLine = line + words[n] + ' ';
-      const metrics = ctx.measureText(testLine);
-      if (metrics.width > maxWidth && n > 0) {
-        ctx.fillText(line.trim(), x, curY);
-        line = words[n] + ' ';
-        curY += lineHeight;
-      } else {
-        line = testLine;
-      }
+  private drawWrappedText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, _maxWidth?: number, lineHeight = 13): void {
+    const parts = text.split('. ');
+    if (parts.length > 1 && text.length > 18) {
+      ctx.fillText(parts[0] + '.', x, y);
+      ctx.fillText(parts.slice(1).join('. '), x, y + lineHeight);
+    } else {
+      ctx.fillText(text, x, y + 6);
     }
-    ctx.fillText(line.trim(), x, curY);
   }
 }

@@ -41,32 +41,31 @@ export interface PlayerStats {
   ownedJokerIds: string[];
 }
 
-export const SHOP_CATALOG: ShopItem[] = [
-  { id: 'titanium_grip', name: 'Titanium Grip', category: 'claw', cost: 4, desc: '+35% Grip. Less slip.' },
-  { id: 'wide_span', name: 'Wide Span Paws', category: 'claw', cost: 4, desc: '+25% Claw Reach.' },
-  { id: 'turbo_winch', name: 'Turbo Winch', category: 'claw', cost: 3, desc: '+40% Winch speed.' },
-  { id: 'magnet_horn', name: 'Magnetic Coil', category: 'claw', cost: 5, desc: 'Draws plushies to hub.' },
-  { id: 'prism_restock', name: 'Prism Seeds', category: 'pit', cost: 5, desc: 'Spawns Rare+ plushies.' },
-  { id: 'midas_touch', name: 'Midas Horns', category: 'pit', cost: 4, desc: '+15% Gold spawn.' },
-  { id: 'plush_overflow', name: 'Plush Refill', category: 'pit', cost: 3, desc: '+6 plushies in pit.' },
-  { id: 'extra_grab', name: 'Grab Voucher', category: 'voucher', cost: 6, desc: '+1 Attempt/day.' },
-  { id: 'quota_bribe', name: 'Arcade Bribe', category: 'voucher', cost: 4, desc: '-20% day quota.' },
-  { id: 'joker_pair', name: 'Joker: Twin Souls', category: 'joker', cost: 5, desc: '+15 Mult on Pairs.' },
-  { id: 'joker_spectrum', name: 'Joker: Prism Beam', category: 'joker', cost: 6, desc: '+25 Mult, x1.5 Mult.' },
-  { id: 'joker_straight', name: 'Joker: Rainbow Trail', category: 'joker', cost: 5, desc: '+50 Chips, x2 Mult.' },
-  { id: 'joker_heavy', name: 'Joker: Mega Hug', category: 'joker', cost: 5, desc: '+60 Chips per haul.' },
-];
+export const SHOP_CATALOG: ShopItem[] = ([
+  ['titanium_grip', 'Titanium Grip', 4, '+35% Grip. Less slip.', 'claw'],
+  ['wide_span', 'Wide Span Paws', 4, '+25% Claw Reach.', 'claw'],
+  ['turbo_winch', 'Turbo Winch', 3, '+40% Winch speed.', 'claw'],
+  ['magnet_horn', 'Magnetic Coil', 5, 'Draws plushies to hub.', 'claw'],
+  ['prism_restock', 'Prism Seeds', 5, 'Spawns Rare+ plushies.', 'pit'],
+  ['midas_touch', 'Midas Horns', 4, '+15% Gold spawn.', 'pit'],
+  ['plush_overflow', 'Plush Refill', 3, '+6 plushies in pit.', 'pit'],
+  ['extra_grab', 'Grab Voucher', 6, '+1 Attempt/day.', 'voucher'],
+  ['quota_bribe', 'Arcade Bribe', 4, '-20% day quota.', 'voucher'],
+  ['joker_pair', 'Joker: Twin Souls', 5, '+15 Mult on Pairs.', 'joker'],
+  ['joker_spectrum', 'Joker: Prism Beam', 6, '+25 Mult, x1.5 Mult.', 'joker'],
+  ['joker_straight', 'Joker: Rainbow Trail', 5, '+50 Chips, x2 Mult.', 'joker'],
+  ['joker_heavy', 'Joker: Mega Hug', 5, '+60 Chips per haul.', 'joker'],
+] as const).map(([id, name, cost, desc, category]) => ({
+  id,
+  name,
+  cost,
+  desc,
+  category,
+}));
 
-export function getDayQuota(day: number): number {
-  if (day === 1) return 300;
-  if (day === 2) return 750;
-  if (day === 3) return 1600;
-  if (day === 4) return 3200;
-  if (day === 5) return 6000;
-  if (day === 6) return 11000;
-  // Geometric scaling beyond day 6
-  return Math.round(11000 * Math.pow(1.7, day - 6));
-}
+const QUOTAS = [0, 300, 750, 1600, 3200, 6000, 11000];
+export const getDayQuota = (day: number): number =>
+  QUOTAS[day] || Math.round(11000 * Math.pow(1.7, day - 6));
 
 export function generateShopOffer(stats: PlayerStats): ShopItem[] {
   // Filter out unique vouchers/jokers already owned
@@ -81,50 +80,18 @@ export function generateShopOffer(stats: PlayerStats): ShopItem[] {
 
 export function applyShopPurchase(item: ShopItem, stats: PlayerStats): void {
   stats.cash -= item.cost;
-
-  switch (item.id) {
-    case 'titanium_grip':
-      stats.gripStrength += 0.35;
-      break;
-    case 'wide_span':
-      stats.clawSpan += 0.25;
-      break;
-    case 'turbo_winch':
-      stats.winchSpeed += 0.4;
-      break;
-    case 'magnet_horn':
-      stats.magnetism += 1.0;
-      break;
-    case 'prism_restock':
-      stats.rarityLuck += 1.2;
-      break;
-    case 'midas_touch':
-      stats.goldenChance += 0.15;
-      break;
-    case 'extra_grab':
-      stats.grabAttemptsMax += 1;
-      stats.ownedJokerIds.push(item.id);
-      break;
-    case 'quota_bribe':
-      stats.quota = Math.round(stats.quota * 0.8);
-      break;
-    case 'joker_pair':
-      stats.pairBonusMult += 15;
-      stats.ownedJokerIds.push(item.id);
-      break;
-    case 'joker_spectrum':
-      stats.spectrumBonusMult += 25;
-      stats.xMult *= 1.5;
-      stats.ownedJokerIds.push(item.id);
-      break;
-    case 'joker_straight':
-      stats.straightBonusChips += 50;
-      stats.straightBonusMult *= 2.0;
-      stats.ownedJokerIds.push(item.id);
-      break;
-    case 'joker_heavy':
-      stats.flatChips += 60;
-      stats.ownedJokerIds.push(item.id);
-      break;
-  }
+  if (item.category === 'joker' || item.id === 'extra_grab') stats.ownedJokerIds.push(item.id);
+  const id = item.id;
+  if (id === 'titanium_grip') stats.gripStrength += 0.35;
+  else if (id === 'wide_span') stats.clawSpan += 0.25;
+  else if (id === 'turbo_winch') stats.winchSpeed += 0.4;
+  else if (id === 'magnet_horn') stats.magnetism += 1.0;
+  else if (id === 'prism_restock') stats.rarityLuck += 1.2;
+  else if (id === 'midas_touch') stats.goldenChance += 0.15;
+  else if (id === 'extra_grab') stats.grabAttemptsMax += 1;
+  else if (id === 'quota_bribe') stats.quota = Math.round(stats.quota * 0.8);
+  else if (id === 'joker_pair') stats.pairBonusMult += 15;
+  else if (id === 'joker_spectrum') { stats.spectrumBonusMult += 25; stats.xMult *= 1.5; }
+  else if (id === 'joker_straight') { stats.straightBonusChips += 50; stats.straightBonusMult *= 2.0; }
+  else if (id === 'joker_heavy') stats.flatChips += 60;
 }

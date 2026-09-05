@@ -173,28 +173,18 @@ export class ParticleSystem {
         ctx.rotate(p.rot || 0);
         ctx.fillStyle = color;
         const s = p.size * (1 - progress * 0.4);
-        // 4-point retro star
-        ctx.beginPath();
-        ctx.moveTo(0, -s);
-        ctx.lineTo(s * 0.3, -s * 0.3);
-        ctx.lineTo(s, 0);
-        ctx.lineTo(s * 0.3, s * 0.3);
-        ctx.lineTo(0, s);
-        ctx.lineTo(-s * 0.3, s * 0.3);
-        ctx.lineTo(-s, 0);
-        ctx.lineTo(-s * 0.3, -s * 0.3);
-        ctx.closePath();
-        ctx.fill();
+        ctx.fillRect(-s * 0.5, -s * 0.18, s, s * 0.36);
+        ctx.fillRect(-s * 0.18, -s * 0.5, s * 0.36, s);
       } else if (p.type === 'dot') {
         ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.arc(0, 0, Math.max(1, p.size * (1 - progress)), 0, Math.PI * 2);
+        ctx.arc(0, 0, Math.max(1, p.size * (1 - progress)), 0, 6.28);
         ctx.fill();
       } else if (p.type === 'ring') {
         ctx.strokeStyle = color;
         ctx.lineWidth = Math.max(1, 3 * (1 - progress));
         ctx.beginPath();
-        ctx.arc(0, 0, progress * 40, 0, Math.PI * 2);
+        ctx.arc(0, 0, progress * 40, 0, 6.28);
         ctx.stroke();
       } else if (p.type === 'confetti') {
         ctx.rotate(p.rot || 0);

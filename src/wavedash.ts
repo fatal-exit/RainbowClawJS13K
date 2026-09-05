@@ -84,96 +84,73 @@ export class WavedashService {
     const sdk = this.getSdk();
     if (!sdk) return null;
     try {
-      let res = typeof sdk.getLeaderboard === 'function'
-        ? await sdk.getLeaderboard('rainbow-claw-top')
-        : null;
-      if ((!res || res.success === false) && typeof sdk.getOrCreateLeaderboard === 'function') {
+      let res = sdk.getLeaderboard ? await sdk.getLeaderboard('rainbow-claw-top') : null;
+      if (!res?.success && sdk.getOrCreateLeaderboard) {
         res = await sdk.getOrCreateLeaderboard('rainbow-claw-top', 1, 0);
       }
-      if (!res || res.success === false) return null;
-      this.boardId = typeof res === 'string' ? res : res.data?.id || res.id || null;
-    } catch {
-      return null;
-    }
+      this.boardId = typeof res === 'string' ? res : res?.data?.id || res?.id || null;
+    } catch { /* ignore */ }
     return this.boardId;
   }
 
   public async fetchLeaderboardTop(limit = 8): Promise<LeaderboardEntry[]> {
     const sdk = this.getSdk();
-    if (sdk && typeof sdk.listLeaderboardEntries === 'function') {
+    if (sdk?.listLeaderboardEntries) {
       try {
         const id = await this.ensureBoard();
         if (id) {
           const raw = await sdk.listLeaderboardEntries(id, 0, limit, false);
-          const data = raw && typeof raw === 'object' && 'success' in raw ? (raw.success ? raw.data : null) : raw;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const entries: any[] = Array.isArray(data) ? data : data?.entries ?? [];
+          const entries: any[] = Array.isArray(raw?.data) ? raw.data : (raw?.entries || []);
           return entries.map((e, i) => ({
-            rank: typeof e.globalRank === 'number' ? e.globalRank : i + 1,
-            score: typeof e.score === 'number' ? e.score : 0,
-            name: typeof e.username === 'string' && e.username.length > 0 ? e.username : 'UnicornHunter',
-            day: typeof e.extraData === 'number' ? e.extraData : 1,
+            rank: e.globalRank || i + 1,
+            score: e.score || 0,
+            name: e.username || 'UnicornHunter',
+            day: e.extraData || 1,
           }));
         }
-      } catch {
-        /* fallback */
-      }
+      } catch { /* fallback */ }
     }
 
     try {
       const stored = localStorage.getItem(LOCAL_LEADERBOARD_KEY);
       if (stored) return JSON.parse(stored);
-    } catch {
-      /* ignore */
-    }
-    return [
-      { rank: 1, name: 'ArcadeAce', score: 8500, day: 5 },
-      { rank: 2, name: 'PrismQueen', score: 5400, day: 4 },
-      { rank: 3, name: 'ClawMaster', score: 2800, day: 3 },
-      { rank: 4, name: 'NeonPony', score: 1200, day: 2 },
+    } catch { /* ignore */ }
+    const defs: [string, number, number][] = [
+      ['ArcadeAce', 8500, 5],
+      ['PrismQueen', 5400, 4],
+      ['ClawMaster', 2800, 3],
+      ['NeonPony', 1200, 2],
     ];
+    return defs.map(([name, score, day], i) => ({ rank: i + 1, name, score, day }));
   }
 
   public async submitScore(score: number, day: number): Promise<void> {
     const best = this.getLocalHighScore();
     if (score > best) {
-      try {
-        localStorage.setItem(LOCAL_STORAGE_KEY, score.toString());
-      } catch {
-        /* ignore */
-      }
+      try { localStorage.setItem(LOCAL_STORAGE_KEY, score.toString()); } catch { /* ignore */ }
     }
 
     const sdk = this.getSdk();
-    if (sdk) {
+    if (sdk?.uploadLeaderboardScore) {
       try {
         const id = await this.ensureBoard();
-        if (id && typeof sdk.uploadLeaderboardScore === 'function') {
-          await sdk.uploadLeaderboardScore(id, score, true);
-        }
-      } catch {
-        /* ignore */
-      }
+        if (id) await sdk.uploadLeaderboardScore(id, score, true);
+      } catch { /* ignore */ }
     }
 
     try {
       const top = await this.fetchLeaderboardTop(8);
-      const player = this.getPlayer();
-      const existing = top.findIndex(e => e.name === player.username);
-      if (existing >= 0) {
-        if (score > top[existing].score) {
-          top[existing].score = score;
-          top[existing].day = day;
-        }
+      const { username } = this.getPlayer();
+      const e = top.find((x) => x.name === username);
+      if (e) {
+        if (score > e.score) { e.score = score; e.day = day; }
       } else {
-        top.push({ rank: 0, name: player.username, score, day });
+        top.push({ rank: 0, name: username, score, day });
       }
-      top.sort((a, b) => b.score - a.score);
-      top.forEach((e, idx) => { e.rank = idx + 1; });
+      top.sort((a, b) => b.score - a.score).forEach((x, i) => { x.rank = i + 1; });
       localStorage.setItem(LOCAL_LEADERBOARD_KEY, JSON.stringify(top.slice(0, 8)));
-    } catch {
-      /* ignore */
-    }
+    } catch { /* ignore */ }
   }
 }
 

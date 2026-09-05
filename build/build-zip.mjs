@@ -32,17 +32,19 @@ async function build() {
     module: false,
     toplevel: true,
     compress: {
-      passes: 6,
+      passes: 8,
       unsafe: true,
       unsafe_arrows: true,
       unsafe_comps: true,
       unsafe_math: true,
       unsafe_methods: true,
+      unsafe_proto: true,
       booleans: true,
       drop_debugger: true,
       pure_getters: true,
       reduce_vars: true,
       dead_code: true,
+      hoist_funs: true,
       inline: 3,
     },
     mangle: {
@@ -68,7 +70,9 @@ async function build() {
         type: 'js',
         action: 'eval',
       },
-    ]);
+    ], {
+      allowFreeVars: true,
+    });
     await packer.optimize(2);
     const { firstLine, secondLine } = packer.makeDecoder();
     finalJs = firstLine + secondLine;
@@ -77,8 +81,7 @@ async function build() {
     console.warn('⚠️ Roadroller fallback:', err);
   }
 
-  // 4. Inline into minimal HTML inside dist/
-  const html = `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rainbow Claw</title><style>body{margin:0;height:100vh;overflow:hidden;background:#050508;display:grid;place-items:center;touch-action:none;user-select:none}canvas{image-rendering:pixelated;image-rendering:crisp-edges;width:min(100vw,calc(100vh*4/3));height:min(100vh,calc(100vw*3/4))}</style><canvas id="c" width="400" height="300"></canvas><script>${finalJs}<\/script>`;
+  const html = `<!doctype html><meta name=viewport content=width=device-width,initial-scale=1><title>Rainbow Claw</title><style>body{margin:0;height:100vh;background:#050508;display:grid;place-items:center;touch-action:none}canvas{aspect-ratio:4/3;max-width:100vw;max-height:100vh;image-rendering:pixelated}</style><canvas id=c></canvas><script>${finalJs}<\/script>`;
 
   const htmlPath = path.join(distDir, 'index.html');
   fs.writeFileSync(htmlPath, html, 'utf-8');
@@ -111,9 +114,9 @@ async function build() {
   const advzipTool = await findAdvzip();
   if (advzipTool) {
     const displayName = advzipTool.args.length > 0 ? `${advzipTool.bin} ${advzipTool.args.join(' ')}` : advzipTool.bin;
-    console.log(`\n🗜️  Running advzip post-processing (${displayName} -z -4 -i 100)...`);
+    console.log(`\n🗜️  Running advzip post-processing (${displayName} -z -4 -i 250)...`);
     try {
-      execFileSync(advzipTool.bin, [...advzipTool.args, '-z', '-4', '-i', '100', rootZipPath], { stdio: 'pipe' });
+      execFileSync(advzipTool.bin, [...advzipTool.args, '-z', '-4', '-i', '250', rootZipPath], { stdio: 'pipe' });
       fs.copyFileSync(rootZipPath, dirZipPath);
       finalZipBytes = fs.statSync(rootZipPath).size;
       const savedBytes = initialZipBytes - finalZipBytes;

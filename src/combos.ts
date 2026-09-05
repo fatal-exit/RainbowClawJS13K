@@ -72,98 +72,39 @@ function evaluateFiveOrFewer(
   const sortedRanks = [...ranks].sort((a, b) => a - b);
   const uniqueCount = rankCounts.size;
 
-  let comboName = 'High Plush';
-  let subTitle = 'Single catch';
-  let baseChips = 10;
-  let baseMult = 1.0;
+  let [comboName, subTitle, baseChips, baseMult] = ['High Plush', 'Single catch', 10, 1.0];
 
-  // Check 5 of a Kind
   if (counts[0] === 5) {
-    comboName = 'Mythic Pantheon';
-    subTitle = '5 of a Kind!';
-    baseChips = 300;
-    baseMult = 8.0;
-  }
-  // Check 4 of a Kind
-  else if (counts[0] === 4) {
-    comboName = 'Quadruple Glory';
-    subTitle = '4 of a Kind!';
-    baseChips = 140;
-    baseMult = 6.0;
-  }
-  // Check Full House (3 of one + 2 of another)
-  else if (counts[0] === 3 && counts[1] === 2) {
-    comboName = 'Full Stable';
-    subTitle = 'Full House!';
-    baseChips = 80;
-    baseMult = 4.0;
-  }
-  // Check All Unique / Prism Spectrum (5 unique varieties)
-  else if (hand.length === 5 && uniqueCount === 5) {
-    // Check if it's also a Straight!
+    [comboName, subTitle, baseChips, baseMult] = ['Mythic Pantheon', '5 of a Kind!', 300, 8.0];
+  } else if (counts[0] === 4) {
+    [comboName, subTitle, baseChips, baseMult] = ['Quadruple Glory', '4 of a Kind!', 140, 6.0];
+  } else if (counts[0] === 3 && counts[1] === 2) {
+    [comboName, subTitle, baseChips, baseMult] = ['Full Stable', 'Full House!', 80, 4.0];
+  } else if (hand.length === 5 && uniqueCount === 5) {
     const isConsecutive = isStraight(sortedRanks);
-    // Check original catch order for Low-to-High vs High-to-Low
-    const originalRanks = hand.map(u => u.variety.rank);
-    const isAscending = isStrictlyIncreasing(originalRanks);
-    const isDescending = isStrictlyDecreasing(originalRanks);
-
-    if (isConsecutive && isDescending) {
-      comboName = 'Descending Rainbow';
-      subTitle = 'High-to-Low Straight!';
-      baseChips = 120 + jokers.straightBonusChips;
-      baseMult = 5.5 * jokers.straightBonusMult;
-    } else if (isConsecutive && isAscending) {
-      comboName = 'Ascending Rainbow';
-      subTitle = 'Low-to-High Straight!';
-      baseChips = 100 + jokers.straightBonusChips;
-      baseMult = 5.0 * jokers.straightBonusMult;
+    if (isConsecutive && isStraight([...ranks].reverse())) {
+      [comboName, subTitle, baseChips, baseMult] = ['Descending Rainbow', 'High-to-Low Straight!', 120 + jokers.straightBonusChips, 5.5 * jokers.straightBonusMult];
+    } else if (isConsecutive && isStraight(ranks)) {
+      [comboName, subTitle, baseChips, baseMult] = ['Ascending Rainbow', 'Low-to-High Straight!', 100 + jokers.straightBonusChips, 5.0 * jokers.straightBonusMult];
     } else if (isConsecutive) {
-      comboName = 'Prism Straight';
-      subTitle = 'Straight 5-in-a-row!';
-      baseChips = 90 + jokers.straightBonusChips;
-      baseMult = 4.5 * jokers.straightBonusMult;
+      [comboName, subTitle, baseChips, baseMult] = ['Prism Straight', 'Straight 5-in-a-row!', 90 + jokers.straightBonusChips, 4.5 * jokers.straightBonusMult];
     } else {
-      comboName = 'Prism Spectrum';
-      subTitle = 'All 5 Unique Varieties!';
-      baseChips = 85;
-      baseMult = 4.0 + jokers.spectrumBonusMult;
+      [comboName, subTitle, baseChips, baseMult] = ['Prism Spectrum', 'All 5 Unique Varieties!', 85, 4.0 + jokers.spectrumBonusMult];
     }
-  }
-  // Check 3 of a Kind
-  else if (counts[0] === 3) {
-    comboName = 'Triple Crown';
-    subTitle = '3 of a Kind!';
-    baseChips = 60;
-    baseMult = 3.2;
-  }
-  // Check Two Pair
-  else if (counts[0] === 2 && counts[1] === 2) {
-    comboName = 'Twin Pairs';
-    subTitle = 'Two Pairs!';
-    baseChips = 40;
-    baseMult = 2.5 + jokers.pairBonusMult * 0.5;
-  }
-  // Check Pair
-  else if (counts[0] === 2) {
-    comboName = 'Twin Horns';
-    subTitle = 'One Pair!';
-    baseChips = 25;
-    baseMult = 2.0 + jokers.pairBonusMult;
-  }
-  // Less than 5 cards: check if 3 or 4 consecutive
-  else if (hand.length >= 3 && isStraight(sortedRanks)) {
-    comboName = 'Mini Rainbow';
-    subTitle = `${hand.length}-Straight!`;
-    baseChips = 30 + hand.length * 10;
-    baseMult = 2.0 + hand.length * 0.4;
+  } else if (counts[0] === 3) {
+    [comboName, subTitle, baseChips, baseMult] = ['Triple Crown', '3 of a Kind!', 60, 3.2];
+  } else if (counts[0] === 2 && counts[1] === 2) {
+    [comboName, subTitle, baseChips, baseMult] = ['Twin Pairs', 'Two Pairs!', 40, 2.5 + jokers.pairBonusMult * 0.5];
+  } else if (counts[0] === 2) {
+    [comboName, subTitle, baseChips, baseMult] = ['Twin Horns', 'One Pair!', 25, 2.0 + jokers.pairBonusMult];
+  } else if (hand.length >= 3 && isStraight(sortedRanks)) {
+    [comboName, subTitle, baseChips, baseMult] = ['Mini Rainbow', `${hand.length}-Straight!`, 30 + hand.length * 10, 2.0 + hand.length * 0.4];
   }
 
   // Calculate sum of chips from all plushies in hand
   let plushChips = 0;
   for (const u of hand) {
-    let c = u.variety.baseChips;
-    if (u.isGolden) c *= 5; // Golden Horn 5x multiplier!
-    plushChips += c;
+    plushChips += u.variety.baseChips * (u.isGolden ? 5 : 1);
   }
 
   const totalChips = plushChips + baseChips + jokers.flatChips;
@@ -182,28 +123,7 @@ function evaluateFiveOrFewer(
   };
 }
 
-function isStraight(sorted: number[]): boolean {
-  for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i] !== sorted[i - 1] + 1) return false;
-  }
-  return true;
-}
-
-function isStrictlyIncreasing(arr: number[]): boolean {
-  if (arr.length < 3) return false;
-  for (let i = 1; i < arr.length; i++) {
-    if (arr[i] <= arr[i - 1]) return false;
-  }
-  return true;
-}
-
-function isStrictlyDecreasing(arr: number[]): boolean {
-  if (arr.length < 3) return false;
-  for (let i = 1; i < arr.length; i++) {
-    if (arr[i] >= arr[i - 1]) return false;
-  }
-  return true;
-}
+const isStraight = (arr: number[]) => arr.every((v, i) => !i || v === arr[i - 1] + 1);
 
 function getCombinations<T>(items: T[], k: number): T[][] {
   if (k >= items.length) return [items];

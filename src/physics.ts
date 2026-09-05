@@ -21,9 +21,9 @@ export class PhysicsEngine {
   public readonly railY = 26;
   public readonly minCarriageX = 85;
   public readonly maxCarriageX = 370;
-  public readonly chuteX = 48;       // Center of drop chute
+  public readonly chuteX = 47;       // Center of drop chute
   public readonly chuteLipX = 76;    // Chute divider wall
-  public readonly pitFloorY = 260;
+  public readonly pitFloorY = 236;   // Floor strictly above control deck (Y=240+)
   public readonly pitRightX = 385;
 
   // Carriage State
@@ -34,7 +34,7 @@ export class PhysicsEngine {
   // Cable & Pendulum State
   public cableLength = 25;
   public readonly minCableLen = 25;
-  public readonly maxCableLen = 215;
+  public readonly maxCableLen = 195;
   public swingAngle = 0;      // theta (radians)
   public swingAngVel = 0;     // omega (rad/s)
 
@@ -127,16 +127,19 @@ export class PhysicsEngine {
     } else if (this.state === 'RETURNING') {
       // Return automatically towards the drop chute
       const dx = this.chuteX - this.carriageX;
-      const speed = 140 * stats.winchSpeed;
+      const speed = 180 * stats.winchSpeed;
       if (Math.abs(dx) > 2) {
         this.carriageVx = Math.sign(dx) * speed;
         this.carriageX += this.carriageVx * dt;
+        this.swingAngle *= 0.88;
+        this.swingAngVel *= 0.82;
       } else {
         this.carriageX = this.chuteX;
         this.carriageVx = 0;
+        this.swingAngle = 0;
+        this.swingAngVel = 0;
         this.state = 'RELEASING';
         this.stateTimer = 0;
-        this.targetProngAngle = 0.85; // Open prongs!
       }
     } else {
       this.carriageVx *= 0.85;
@@ -158,7 +161,7 @@ export class PhysicsEngine {
     // 3. Winch & Claw State Machine
     this.stateTimer += dt;
     const winchLowerSpeed = 150 * stats.winchSpeed;
-    const winchRaiseSpeed = 130 * stats.winchSpeed;
+    const winchRaiseSpeed = 160 * stats.winchSpeed;
 
     if (this.state === 'LOWERING') {
       this.cableLength += winchLowerSpeed * dt;
@@ -230,22 +233,45 @@ export class PhysicsEngine {
         this.stateTimer = 0;
       }
     } else if (this.state === 'RELEASING') {
-      this.prongAngle += (this.targetProngAngle - this.prongAngle) * (14 * dt);
+      const hasPlush = this.plushies.some((p) => p.isGrabbed);
+      const chuteDepthLen = 135;
 
-      // Release any gripped plushies
-      for (const u of this.plushies) {
-        if (u.isGrabbed) {
-          u.isGrabbed = false;
-          u.gripLocked = false;
-          u.vx = (Math.random() - 0.5) * 15;
-          u.vy = 20;
+      if (hasPlush) {
+        // Phase 1: Descend deep inside the chute opening before opening tines
+        if (this.cableLength < chuteDepthLen && this.stateTimer < 0.6) {
+          this.cableLength += 220 * stats.winchSpeed * dt;
+          this.targetProngAngle = 0.18; // Keep grip locked while descending
+        } else {
+          // Phase 2: Once inside chute opening, open prongs to drop plush safely
+          this.targetProngAngle = 0.85;
+          for (const u of this.plushies) {
+            if (u.isGrabbed) {
+              u.isGrabbed = false;
+              u.gripLocked = false;
+              u.vx = (Math.random() - 0.5) * 6;
+              u.vy = 40;
+            }
+          }
+          // Phase 3: Retract cable back to ceiling
+          if (this.stateTimer > 0.8) {
+            this.cableLength -= 240 * stats.winchSpeed * dt;
+            if (this.cableLength <= this.minCableLen) {
+              this.cableLength = this.minCableLen;
+              this.state = 'FINISHED';
+              this.mechanicalState = 'OPEN';
+            }
+          }
+        }
+      } else {
+        // Empty claw: quick return click and finish
+        this.targetProngAngle = 0.85;
+        if (this.stateTimer >= 0.25) {
+          this.state = 'FINISHED';
+          this.mechanicalState = 'OPEN';
         }
       }
 
-      if (this.stateTimer >= 1.0) {
-        this.state = 'FINISHED';
-        this.mechanicalState = 'OPEN';
-      }
+      this.prongAngle += (this.targetProngAngle - this.prongAngle) * (16 * dt);
     }
 
     // Update Hub Position
@@ -354,8 +380,8 @@ export class PhysicsEngine {
         u.vx = -u.vx * 0.3;
       }
 
-      // Chute Divider Wall (Lip at X = 76, from Y = 155 to 260)
-      if (u.y > 155) {
+      // Chute Divider Wall (Lip at X = 76, from Y = 140 to pitFloorY)
+      if (u.y > 140) {
         if (u.x - u.radius < this.chuteLipX && u.x > this.chuteLipX - 6) {
           u.x = this.chuteLipX + u.radius;
           u.vx = Math.abs(u.vx) * 0.3;
@@ -372,8 +398,8 @@ export class PhysicsEngine {
       }
 
       // Drop Chute Score Detection:
-      // If a unicorn falls into the chute zone (X in [18, 74], Y > 175)
-      if (u.x < this.chuteLipX && u.y > 175 && !u.isScored) {
+      // If a unicorn falls into the chute zone (X in [18, 74], Y > 155)
+      if (u.x < this.chuteLipX && u.y > 155 && !u.isScored) {
         u.isScored = true;
         u.inChute = true;
         this.capturedThisDrop.push(u);
@@ -459,30 +485,37 @@ export class PhysicsEngine {
     time: number
   ): void {
     // 1. Drop Chute (Left side)
+    const chuteHeight = this.pitFloorY - 140;
     ctx.fillStyle = '#090a10';
-    ctx.fillRect(16, 150, 60, 115);
+    ctx.fillRect(16, 140, 60, chuteHeight);
 
     // Chute mesh / dither pattern
     ctx.fillStyle = '#1c1f2b';
-    for (let py = 155; py < 260; py += 6) {
+    for (let py = 145; py < this.pitFloorY; py += 6) {
       ctx.fillRect(18, py, 56, 1);
     }
     for (let px = 20; px < 74; px += 8) {
-      ctx.fillRect(px, 155, 1, 105);
+      ctx.fillRect(px, 145, 1, chuteHeight - 5);
     }
 
     // Chute Divider Wall
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(this.chuteLipX - 2, 150, 4, 112);
+    ctx.fillRect(this.chuteLipX - 2, 140, 4, chuteHeight);
     ctx.fillStyle = '#050508';
-    ctx.fillRect(this.chuteLipX - 1, 152, 2, 110);
+    ctx.fillRect(this.chuteLipX - 1, 142, 2, chuteHeight - 2);
 
     // Chute Neon Rainbow Sign: "PRIZE"
     const prizeHue = (time * 120) % 360;
     ctx.fillStyle = `hsl(${prizeHue}, 100%, 65%)`;
     ctx.font = 'bold 9px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('PRIZE', 46, 142);
+    ctx.fillText('PRIZE', 46, 132);
+
+    // Machine Pit Floor Base
+    ctx.fillStyle = '#10121a';
+    ctx.fillRect(10, this.pitFloorY - 2, 380, 4);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(10, this.pitFloorY, 380, 1);
 
     // 2. Top Gantry / Rail
     ctx.fillStyle = '#1a1d26';
@@ -511,24 +544,15 @@ export class PhysicsEngine {
     // 4. Rainbow Cable
     const hubX = Math.round(this.hubX);
     const hubY = Math.round(this.hubY);
-
-    const cableSegments = 12;
-    for (let i = 0; i < cableSegments; i++) {
-      const t0 = i / cableSegments;
-      const t1 = (i + 1) / cableSegments;
-      const x0 = carX * (1 - t0) + hubX * t0;
-      const y0 = this.railY * (1 - t0) + hubY * t0;
-      const x1 = carX * (1 - t1) + hubX * t1;
-      const y1 = this.railY * (1 - t1) + hubY * t1;
-
-      const segHue = (time * 300 + i * 25) % 360;
-      ctx.strokeStyle = `hsl(${segHue}, 100%, 65%)`;
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.moveTo(x0, y0);
-      ctx.lineTo(x1, y1);
-      ctx.stroke();
-    }
+    const grad = ctx.createLinearGradient(carX, this.railY, hubX, hubY);
+    grad.addColorStop(0, `hsl(${(time * 300) % 360}, 100%, 65%)`);
+    grad.addColorStop(1, `hsl(${(time * 300 + 180) % 360}, 100%, 65%)`);
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(carX, this.railY);
+    ctx.lineTo(hubX, hubY);
+    ctx.stroke();
   }
 
   /**
@@ -568,26 +592,24 @@ export class PhysicsEngine {
     const tineLen = (24 + tineY) * span;
 
     // --- A. Center Vertical Tine (Middle Prong) ---
+    const strokeDual = (col: string, w: number, fn: () => void) => {
+      ctx.strokeStyle = '#05050a'; ctx.lineWidth = w + 1.8; fn(); ctx.stroke();
+      ctx.strokeStyle = col; ctx.lineWidth = w; fn(); ctx.stroke();
+    };
+
+    // --- A. Center Vertical Tine (Middle Prong) ---
     ctx.save();
     ctx.translate(0, 4);
-    const drawTine = () => {
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    strokeDual(`hsl(${(hubHue + 120) % 360}, 100%, 65%)`, 2.8, () => {
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.lineTo(0, tineLen);
       ctx.lineTo(-3.5 * span, tineLen - 3.5 * span);
       ctx.moveTo(0, tineLen);
       ctx.lineTo(3.5 * span, tineLen - 3.5 * span);
-    };
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#05050a';
-    ctx.lineWidth = 4.5;
-    drawTine();
-    ctx.stroke();
-    ctx.strokeStyle = `hsl(${(hubHue + 120) % 360}, 100%, 65%)`;
-    ctx.lineWidth = 2.8;
-    drawTine();
-    ctx.stroke();
+    });
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -603,24 +625,16 @@ export class PhysicsEngine {
       ctx.save();
       ctx.translate(side * 8, 3);
       ctx.rotate(side * angle);
-      const drawArc = () => {
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      const h = side === -1 ? hubHue + 40 : hubHue + 160;
+      strokeDual(`hsl(${h % 360}, 100%, 68%)`, 2.8, () => {
         ctx.beginPath();
         ctx.moveTo(0, 0);
         ctx.quadraticCurveTo(side * -11 * span, armLen * 0.45, side * -8 * span, armLen * 0.8);
         ctx.quadraticCurveTo(side * -3 * span, armLen + tipLen * 0.5, side * 2.5 * span, armLen + tipLen * 0.6);
         ctx.lineTo(side * 4.5 * span, armLen + tipLen * 0.42);
-      };
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.strokeStyle = '#05050a';
-      ctx.lineWidth = 4.8;
-      drawArc();
-      ctx.stroke();
-      const h = side === -1 ? hubHue + 40 : hubHue + 160;
-      ctx.strokeStyle = `hsl(${h % 360}, 100%, 68%)`;
-      ctx.lineWidth = 2.8;
-      drawArc();
-      ctx.stroke();
+      });
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -631,7 +645,7 @@ export class PhysicsEngine {
       ctx.fillRect(Math.round(side * -8 * span) - 1, Math.round(armLen * 0.8) - 1, 2, 2);
       ctx.fillStyle = `hsl(${(h + 180) % 360}, 100%, 75%)`;
       ctx.beginPath();
-      ctx.arc(side * 4.5 * span, armLen + tipLen * 0.42, 2.2, 0, Math.PI * 2);
+      ctx.arc(side * 4.5 * span, armLen + tipLen * 0.42, 2.2, 0, 6.28);
       ctx.fill();
       ctx.restore();
     };
@@ -716,16 +730,16 @@ export class PhysicsEngine {
   public drawMachineForeground(ctx: CanvasRenderingContext2D): void {
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
-    ctx.strokeRect(10, 10, 380, 260);
+    ctx.strokeRect(10, 10, 380, this.pitFloorY + 1 - 10);
 
     // Glass Reflection Dither Streak
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(30, 20);
-    ctx.lineTo(160, 260);
+    ctx.lineTo(150, this.pitFloorY);
     ctx.moveTo(45, 20);
-    ctx.lineTo(175, 260);
+    ctx.lineTo(165, this.pitFloorY);
     ctx.stroke();
   }
 

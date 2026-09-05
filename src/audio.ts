@@ -8,37 +8,12 @@
 // Convert MIDI note number to frequency in Hz
 const m2f = (m: number): number => 440 * Math.pow(2, (m - 69) / 12);
 
-// E Phrygian Dominant Scale frequencies
-// === 32-BAR PATTERNS IN E PHRYGIAN DOMINANT ===
-const bA0 = [40, 0, 40, 41, 0, 40, 44, 0, 40, 0, 40, 41, 0, 44, 45, 44];
-const bA1 = [40, 0, 40, 41, 0, 40, 44, 0, 40, 44, 47, 48, 47, 45, 44, 41];
-const bA3 = [40, 41, 44, 45, 47, 45, 44, 41, 40, 44, 47, 52, 50, 48, 47, 44];
-const bassA = [bA0, bA1, bA0, bA3];
-
-const lA0 = [64, 0, 76, 68, 0, 76, 71, 74, 68, 65, 64, 68, 71, 76, 74, 71];
-const lA1 = [76, 0, 80, 76, 77, 76, 74, 71, 72, 71, 68, 65, 68, 71, 76, 80];
-const lA3 = [80, 83, 80, 76, 74, 76, 74, 71, 68, 71, 68, 65, 64, 68, 71, 76];
-const leadA = [lA0, lA1, lA0, lA3];
-
-const bB0 = [0, 40, 0, 44, 0, 47, 0, 52, 0, 41, 0, 45, 0, 48, 0, 53];
-const bB1 = [0, 44, 0, 48, 0, 52, 0, 56, 40, 44, 47, 52, 48, 45, 41, 38];
-const bB3 = [44, 0, 47, 0, 52, 0, 56, 0, 52, 48, 47, 45, 44, 41, 40, 38];
-const bassB = [bB0, bB1, bB0, bB3];
-
-const lB0 = [64, 68, 71, 76, 68, 71, 76, 80, 71, 76, 80, 83, 76, 80, 83, 88];
-const lB1 = [80, 76, 72, 69, 77, 74, 71, 68, 76, 72, 68, 65, 71, 68, 65, 64];
-const lB3 = [88, 86, 84, 83, 80, 76, 74, 71, 68, 65, 64, 68, 71, 76, 80, 83];
-const leadB = [lB0, lB1, lB0, lB3];
-
-const bC0 = [40, 52, 40, 52, 41, 53, 41, 53, 44, 56, 44, 56, 47, 59, 45, 57];
-const bC1 = [40, 52, 40, 52, 48, 60, 47, 59, 45, 57, 44, 56, 41, 53, 38, 50];
-const bC3 = [52, 50, 48, 47, 45, 44, 41, 40, 44, 47, 52, 56, 59, 56, 52, 44];
-const bassC = [bC0, bC1, bC0, bC3];
-
-const lC0 = [88, 83, 80, 76, 83, 80, 76, 71, 80, 76, 71, 68, 76, 71, 68, 64];
-const lC1 = [64, 76, 80, 88, 65, 77, 81, 89, 68, 80, 84, 92, 71, 83, 87, 95];
-const lC3 = [95, 92, 88, 84, 80, 76, 72, 68, 65, 68, 71, 76, 80, 83, 88, 92];
-const leadC = [lC0, lC1, lC0, lC3];
+// E Phrygian Dominant 32-bar patterns (compact 288 chars mapping subBars [0,1,0,2])
+const SONG_NOTES = '( () (, ( () ,-,( () (, (,/0/-,)(),-/-,)(,/420/,@ LD LGJDA@DGLJGL PLMLJGHGDADGLPPSPLJLJGDGDA@DGL ( , / 4 ) - 0 5 , 0 4 8(,/40-)&, / 4 8 40/-,)(&@DGLDGLPGLPSLPSXPLHEMJGDLHDAGDA@XVTSPLJGDA@DGLPS(4(4)5)5,8,8/;-9(4(40</;-9,8)5&2420/-,)(,/48;84,XSPLSPLGPLGDLGD@@LPXAMQYDPT\\GSW__\\XTPLHDADGLPSX\\';
+const getNote = (s: number, t: number, b: number, i: number): number => {
+  const c = SONG_NOTES.charCodeAt(s * 96 + t * 48 + [0, 16, 0, 32][b] + i);
+  return c === 32 ? 0 : c;
+};
 
 export class AudioEngine {
   private ctx: AudioContext | null = null;
@@ -70,21 +45,12 @@ export class AudioEngine {
       }
 
       const compressor = this.ctx.createDynamicsCompressor();
-      compressor.threshold.setValueAtTime(-12, this.ctx.currentTime);
-      compressor.knee.setValueAtTime(6, this.ctx.currentTime);
-      compressor.ratio.setValueAtTime(8, this.ctx.currentTime);
-      compressor.attack.setValueAtTime(0.003, this.ctx.currentTime);
-      compressor.release.setValueAtTime(0.1, this.ctx.currentTime);
-
       this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.setValueAtTime(0.7, this.ctx.currentTime);
-
       this.musicGain = this.ctx.createGain();
-      this.musicGain.gain.setValueAtTime(0.65, this.ctx.currentTime);
-
       this.sfxGain = this.ctx.createGain();
-      this.sfxGain.gain.setValueAtTime(0.85, this.ctx.currentTime);
-
+      this.masterGain.gain.value = 0.7;
+      this.musicGain.gain.value = 0.65;
+      this.sfxGain.gain.value = 0.85;
       this.musicGain.connect(this.masterGain);
       this.sfxGain.connect(this.masterGain);
       this.masterGain.connect(compressor);
@@ -179,44 +145,32 @@ export class AudioEngine {
   private scheduleStep(step: number, bar: number, time: number): void {
     if (!this.ctx || !this.musicGain) return;
     const { type, subBar } = this.getSection(bar);
+    const secIdx = type === 'A' ? 0 : type === 'B' ? 1 : 2;
+    const bNote = getNote(secIdx, 0, subBar, step);
+    const lNote = getNote(secIdx, 1, subBar, step);
 
-    // --- DRUM PATTERNS ---
+    // --- DRUM PATTERNS & NOTES ---
     if (type === 'A') {
-      // 4-on-the-floor + bouncy snare + crisp hats
       if (step % 4 === 0) this.synthKick(time);
       if (step % 8 === 4) this.synthSnare(time);
       if (step % 2 === 0) this.synthHat(time, step % 4 === 2 ? 0.06 : 0.025, step % 4 === 2);
       if (step === 0 && subBar === 0 && bar === 0) this.synthCrash(time);
-
-      const bNote = bassA[subBar][step];
       if (bNote) this.synthDonkBass(m2f(bNote), time, step % 4 === 0);
-
-      const lNote = leadA[subBar][step];
       if (lNote) this.synthPWMLead(m2f(lNote), time, step % 2 === 0);
     } else if (type === 'B') {
-      // Syncopated half-time breakbeat
       if (step === 0 || step === 6 || step === 10) this.synthKick(time);
       if (step === 8 || step === 14) this.synthSnare(time);
       if (step % 2 === 0 || step === 7 || step === 15) {
         this.synthHat(time, (step === 4 || step === 12) ? 0.05 : 0.02, step === 4 || step === 12);
       }
-
-      const bNote = bassB[subBar][step];
       if (bNote) this.synthDonkBass(m2f(bNote), time, step === 0 || step === 8);
-
-      const lNote = leadB[subBar][step];
       if (lNote) this.synthPWMLead(m2f(lNote), time, step % 4 === 0);
     } else {
-      // Section C: Frantic double-time rave climax!
       if (step === 0 || step === 3 || step === 6 || step === 10 || step === 12) this.synthKick(time);
       if (step === 4 || step === 12) this.synthSnare(time, true);
       this.synthHat(time, (step % 4 === 2) ? 0.07 : 0.03, step % 4 === 2);
       if (step === 0 && subBar === 0) this.synthCrash(time);
-
-      const bNote = bassC[subBar][step];
       if (bNote) this.synthDonkBass(m2f(bNote), time, true);
-
-      const lNote = leadC[subBar][step];
       if (lNote) this.synthPWMLead(m2f(lNote), time, true);
     }
   }
@@ -230,46 +184,21 @@ export class AudioEngine {
    */
   private synthPWMLead(freq: number, time: number, accent: boolean): void {
     if (!this.ctx || !this.musicGain) return;
-
-    const saw = this.ctx.createOscillator();
-    const delay = this.ctx.createDelay(0.02);
-    const invGain = this.ctx.createGain();
+    const osc = this.ctx.createOscillator();
     const filter = this.ctx.createBiquadFilter();
     const envGain = this.ctx.createGain();
-
-    saw.type = 'sawtooth';
-
-    const pitchChirp = accent ? 1.025 : 1.0;
-    saw.frequency.setValueAtTime(freq * pitchChirp, time);
-    if (accent) {
-      saw.frequency.exponentialRampToValueAtTime(freq, time + 0.02);
-    }
-
-    // Dynamic pulse width duty cycle (~15% to 50%) via delay modulation
-    const duty = 0.32 + 0.18 * Math.sin(time * 7.0);
-    const delayTime = Math.max(0.0001, Math.min(0.015, duty / freq));
-    delay.delayTime.setValueAtTime(delayTime, time);
-
-    invGain.gain.setValueAtTime(-1.0, time);
-
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(freq * (accent ? 1.025 : 1.0), time);
+    if (accent) osc.frequency.exponentialRampToValueAtTime(freq, time + 0.02);
     filter.type = 'lowpass';
-    const cutoff = accent ? Math.min(14000, freq * 6.5) : Math.min(10000, freq * 4.8);
-    filter.frequency.setValueAtTime(cutoff, time);
-    filter.frequency.exponentialRampToValueAtTime(Math.min(6000, freq * 2.8), time + this.sixteenth * 0.9);
-    filter.Q.setValueAtTime(accent ? 4.5 : 2.5, time);
-
-    const vol = accent ? 0.26 : 0.19;
-    envGain.gain.setValueAtTime(vol, time);
+    filter.frequency.setValueAtTime(accent ? 8000 : 5000, time);
+    filter.frequency.exponentialRampToValueAtTime(1600, time + this.sixteenth * 0.9);
+    envGain.gain.setValueAtTime(accent ? 0.22 : 0.16, time);
     envGain.gain.exponentialRampToValueAtTime(0.001, time + this.sixteenth * 0.88);
-
-    saw.connect(filter);
-    saw.connect(delay);
-    delay.connect(invGain);
-    invGain.connect(filter);
+    osc.connect(filter);
     filter.connect(envGain);
     envGain.connect(this.musicGain);
-
-    this.registerVoice(saw, time, this.sixteenth);
+    this.registerVoice(osc, time, this.sixteenth);
   }
 
   /**
@@ -435,78 +364,41 @@ export class AudioEngine {
     return !!(this.ctx && this.sfxGain) && !this.isMuted;
   }
 
-  /**
-   * Claw Carriage Move Click
-   */
-  public playClawMove(): void {
+  private synthSweep(type: OscillatorType, f1: number, f2: number, vol: number, dur: number): void {
     if (!this.sfxReady()) return;
     const t = this.ctx!.currentTime;
     const osc = this.ctx!.createOscillator();
     const gain = this.ctx!.createGain();
-
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(320, t);
-    osc.frequency.exponentialRampToValueAtTime(120, t + 0.025);
-
-    gain.gain.setValueAtTime(0.08, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
-
+    osc.type = type;
+    osc.frequency.setValueAtTime(f1, t);
+    osc.frequency.exponentialRampToValueAtTime(f2, t + dur * 0.9);
+    gain.gain.setValueAtTime(vol, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
     osc.connect(gain);
     gain.connect(this.sfxGain!);
-    this.registerVoice(osc, t, 0.035);
+    this.registerVoice(osc, t, dur + 0.01);
+  }
+
+  /**
+   * Claw Carriage Move Click
+   */
+  public playClawMove(): void {
+    this.synthSweep('triangle', 320, 120, 0.08, 0.03);
   }
 
   /**
    * Claw Drop Winch Reel Whirr
    */
   public playDrop(): void {
-    if (!this.sfxReady()) return;
-    const t = this.ctx!.currentTime;
-    const osc = this.ctx!.createOscillator();
-    const gain = this.ctx!.createGain();
-
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(659.25, t); // E5
-    osc.frequency.exponentialRampToValueAtTime(164.81, t + 0.22); // E3
-
-    gain.gain.setValueAtTime(0.2, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.24);
-
-    osc.connect(gain);
-    gain.connect(this.sfxGain!);
-    this.registerVoice(osc, t, 0.25);
+    this.synthSweep('sawtooth', 659.25, 164.81, 0.2, 0.24);
   }
 
   /**
    * Claw Prong Clamp / Grab Impact
    */
   public playGrab(): void {
-    if (!this.sfxReady()) return;
-    const t = this.ctx!.currentTime;
-
-    // Metallic clamp snap
-    const snap = this.ctx!.createOscillator();
-    const snapGain = this.ctx!.createGain();
-    snap.type = 'square';
-    snap.frequency.setValueAtTime(1200, t);
-    snap.frequency.exponentialRampToValueAtTime(300, t + 0.06);
-    snapGain.gain.setValueAtTime(0.35, t);
-    snapGain.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
-    snap.connect(snapGain);
-    snapGain.connect(this.sfxGain!);
-    this.registerVoice(snap, t, 0.08);
-
-    // Deep pit thud
-    const sub = this.ctx!.createOscillator();
-    const subGain = this.ctx!.createGain();
-    sub.type = 'sine';
-    sub.frequency.setValueAtTime(140, t);
-    sub.frequency.exponentialRampToValueAtTime(40, t + 0.12);
-    subGain.gain.setValueAtTime(0.5, t);
-    subGain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
-    sub.connect(subGain);
-    subGain.connect(this.sfxGain!);
-    this.registerVoice(sub, t, 0.15);
+    this.synthSweep('square', 1200, 300, 0.35, 0.07);
+    this.synthSweep('sine', 140, 40, 0.5, 0.14);
   }
 
   /**
@@ -515,57 +407,42 @@ export class AudioEngine {
   public playSqueak(rank = 1): void {
     if (!this.sfxReady()) return;
     const t = this.ctx!.currentTime;
-
-    // Scale pitches for varieties 1..7 (E5, F5, G#5, A5, B5, C6, E6)
     const pitches = [659.25, 698.46, 830.61, 880.0, 987.77, 1046.5, 1318.5];
     const baseFreq = pitches[(rank - 1) % pitches.length];
+    const osc = this.ctx!.createOscillator();
+    const gain = this.ctx!.createGain();
+    osc.frequency.setValueAtTime(baseFreq, t);
+    osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.5, t + 0.06);
+    osc.frequency.exponentialRampToValueAtTime(baseFreq, t + 0.13);
+    gain.gain.setValueAtTime(0.35, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+    osc.connect(gain);
+    gain.connect(this.sfxGain!);
+    this.registerVoice(osc, t, 0.16);
+  }
 
-    const carrier = this.ctx!.createOscillator();
-    const mod = this.ctx!.createOscillator();
-    const modGain = this.ctx!.createGain();
-    const carrierGain = this.ctx!.createGain();
-
-    carrier.type = 'sine';
-    mod.type = 'triangle';
-
-    carrier.frequency.setValueAtTime(baseFreq, t);
-    carrier.frequency.exponentialRampToValueAtTime(baseFreq * 1.5, t + 0.06);
-    carrier.frequency.exponentialRampToValueAtTime(baseFreq, t + 0.13);
-
-    mod.frequency.setValueAtTime(baseFreq * 2, t);
-    modGain.gain.setValueAtTime(baseFreq * 0.8, t);
-    modGain.gain.exponentialRampToValueAtTime(10, t + 0.12);
-
-    carrierGain.gain.setValueAtTime(0.35, t);
-    carrierGain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
-
-    mod.connect(carrier.frequency);
-    carrier.connect(carrierGain);
-    carrierGain.connect(this.sfxGain!);
-
-    this.registerVoice(carrier, t, 0.16);
-    this.registerVoice(mod, t, 0.16);
+  private playNotes(notes: number[], type: OscillatorType, stepTime: number, dur: number, vol = 0.25): void {
+    if (!this.sfxReady()) return;
+    const t = this.ctx!.currentTime;
+    notes.forEach((freq, i) => {
+      const start = t + i * stepTime;
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, start);
+      gain.gain.setValueAtTime(vol, start);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + dur * 0.9);
+      osc.connect(gain);
+      gain.connect(this.sfxGain!);
+      this.registerVoice(osc, start, dur);
+    });
   }
 
   /**
    * Unicorn Dropped into Chute (Triumphant Rainbow Chime)
    */
   public playChuteDrop(): void {
-    if (!this.sfxReady()) return;
-    const t = this.ctx!.currentTime;
-    const notes = [659.25, 830.61, 987.77, 1318.51]; // E5, G#5, B5, E6
-    notes.forEach((freq, i) => {
-      const start = t + i * 0.05;
-      const osc = this.ctx!.createOscillator();
-      const gain = this.ctx!.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(freq, start);
-      gain.gain.setValueAtTime(0.28, start);
-      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.22);
-      osc.connect(gain);
-      gain.connect(this.sfxGain!);
-      this.registerVoice(osc, start, 0.25);
-    });
+    this.playNotes([659.25, 830.61, 987.77, 1318.51], 'triangle', 0.05, 0.25, 0.28);
   }
 
   /**
@@ -573,124 +450,37 @@ export class AudioEngine {
    */
   public playCombo(mult: number): void {
     if (!this.sfxReady()) return;
-    const t = this.ctx!.currentTime;
-
-    // Sub thump
-    const sub = this.ctx!.createOscillator();
-    const subGain = this.ctx!.createGain();
-    sub.type = 'sine';
-    sub.frequency.setValueAtTime(180, t);
-    sub.frequency.exponentialRampToValueAtTime(45, t + 0.24);
-    subGain.gain.setValueAtTime(0.7, t);
-    subGain.gain.exponentialRampToValueAtTime(0.001, t + 0.26);
-    sub.connect(subGain);
-    subGain.connect(this.sfxGain!);
-    this.registerVoice(sub, t, 0.28);
-
-    // Ascending arpeggio
+    this.synthSweep('sine', 180, 45, 0.7, 0.26);
     const chord = [523.25, 659.25, 830.61, 987.77, 1318.51, 1661.22];
     const steps = Math.min(chord.length, Math.max(3, Math.floor(mult) + 1));
-    for (let i = 0; i < steps; i++) {
-      const start = t + i * 0.04;
-      const osc = this.ctx!.createOscillator();
-      const gain = this.ctx!.createGain();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(chord[i % chord.length], start);
-      gain.gain.setValueAtTime(0.22, start);
-      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.18);
-      osc.connect(gain);
-      gain.connect(this.sfxGain!);
-      this.registerVoice(osc, start, 0.2);
-    }
   }
 
   /**
    * Cash / Coin Register Chime for Shop Purchases
    */
   public playCoin(): void {
-    if (!this.sfxReady()) return;
-    const t = this.ctx!.currentTime;
-    const freq1 = 987.77; // B5
-    const freq2 = 1318.51; // E6
-
-    const osc1 = this.ctx!.createOscillator();
-    const gain1 = this.ctx!.createGain();
-    osc1.type = 'sine';
-    osc1.frequency.setValueAtTime(freq1, t);
-    gain1.gain.setValueAtTime(0.3, t);
-    gain1.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
-    osc1.connect(gain1);
-    gain1.connect(this.sfxGain!);
-    this.registerVoice(osc1, t, 0.13);
-
-    const osc2 = this.ctx!.createOscillator();
-    const gain2 = this.ctx!.createGain();
-    osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(freq2, t + 0.06);
-    gain2.gain.setValueAtTime(0.35, t + 0.06);
-    gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
-    osc2.connect(gain2);
-    gain2.connect(this.sfxGain!);
-    this.registerVoice(osc2, t + 0.06, 0.24);
+    this.playNotes([987.77, 1318.51], 'sine', 0.06, 0.2, 0.32);
   }
 
   /**
    * UI Click / Selection Tick
    */
   public playUI(): void {
-    if (!this.sfxReady()) return;
-    const t = this.ctx!.currentTime;
-    const osc = this.ctx!.createOscillator();
-    const gain = this.ctx!.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(1174.66, t); // D6
-    gain.gain.setValueAtTime(0.18, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
-    osc.connect(gain);
-    gain.connect(this.sfxGain!);
-    this.registerVoice(osc, t, 0.05);
+    this.playNotes([1174.66], 'sine', 0, 0.04, 0.18);
   }
 
   /**
    * Quota Cleared Fanfare
    */
   public playQuotaSuccess(): void {
-    if (!this.sfxReady()) return;
-    const t = this.ctx!.currentTime;
-    const notes = [329.63, 415.30, 493.88, 659.25, 830.61, 987.77, 1318.51];
-    notes.forEach((freq, idx) => {
-      const start = t + idx * 0.06;
-      const osc = this.ctx!.createOscillator();
-      const gain = this.ctx!.createGain();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(freq, start);
-      gain.gain.setValueAtTime(0.25, start);
-      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.25);
-      osc.connect(gain);
-      gain.connect(this.sfxGain!);
-      this.registerVoice(osc, start, 0.28);
-    });
+    this.playNotes([329.63, 415.3, 493.88, 659.25, 830.61, 987.77, 1318.51], 'sawtooth', 0.06, 0.25, 0.25);
   }
 
   /**
    * Quota Failed Lament
    */
   public playGameOver(): void {
-    if (!this.sfxReady()) return;
-    const t = this.ctx!.currentTime;
-    const notes = [659.25, 622.25, 587.33, 554.37, 493.88];
-    notes.forEach((freq, idx) => {
-      const start = t + idx * 0.10;
-      const osc = this.ctx!.createOscillator();
-      const gain = this.ctx!.createGain();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(freq, start);
-      gain.gain.setValueAtTime(0.3, start);
-      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.18);
-      osc.connect(gain);
-      gain.connect(this.sfxGain!);
-      this.registerVoice(osc, start, 0.2);
-    });
+    this.playNotes([659.25, 622.25, 587.33, 554.37, 493.88], 'sawtooth', 0.1, 0.2, 0.3);
   }
 }
 
