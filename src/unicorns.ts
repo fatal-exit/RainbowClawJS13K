@@ -5,21 +5,19 @@
 export interface UnicornVariety {
   rank: number; // 1 to 7 (used for poker straights: 1-2-3-4-5 etc.)
   name: string;
-  tierName: string;
   baseChips: number;
   radius: number;
   weight: number;
-  colorName: string;
 }
 
 export const UNICORN_VARIETIES: UnicornVariety[] = [
-  { rank: 1, name: 'Cotton Spark', tierName: 'Common', baseChips: 10, radius: 10, weight: 1.0, colorName: 'White' },
-  { rank: 2, name: 'Bubble Dream', tierName: 'Uncommon', baseChips: 25, radius: 11, weight: 1.1, colorName: 'Pastel' },
-  { rank: 3, name: 'Sunset Velvet', tierName: 'Uncommon', baseChips: 45, radius: 11.5, weight: 1.2, colorName: 'Amber' },
-  { rank: 4, name: 'Cyber Chrome', tierName: 'Rare', baseChips: 75, radius: 12, weight: 1.3, colorName: 'Cyan' },
-  { rank: 5, name: 'Shadow Twilight', tierName: 'Epic', baseChips: 120, radius: 12.5, weight: 1.4, colorName: 'Violet' },
-  { rank: 6, name: 'Solar Radiant', tierName: 'Legendary', baseChips: 200, radius: 13, weight: 1.5, colorName: 'Gold' },
-  { rank: 7, name: 'Prism Alicorn', tierName: 'Mythic', baseChips: 350, radius: 14, weight: 1.6, colorName: 'Prism' },
+  { rank: 1, name: 'Cotton Spark', baseChips: 10, radius: 10, weight: 1.0 },
+  { rank: 2, name: 'Bubble Dream', baseChips: 25, radius: 11, weight: 1.1 },
+  { rank: 3, name: 'Sunset Velvet', baseChips: 45, radius: 11.5, weight: 1.2 },
+  { rank: 4, name: 'Cyber Chrome', baseChips: 75, radius: 12, weight: 1.3 },
+  { rank: 5, name: 'Shadow Twilight', baseChips: 120, radius: 12.5, weight: 1.4 },
+  { rank: 6, name: 'Solar Radiant', baseChips: 200, radius: 13, weight: 1.5 },
+  { rank: 7, name: 'Prism Alicorn', baseChips: 350, radius: 14, weight: 1.6 },
 ];
 
 export interface UnicornPlush {
@@ -37,6 +35,7 @@ export interface UnicornPlush {
   squishX: number;
   squishY: number;
   isGrabbed: boolean;
+  gripLocked?: boolean;
   isScored: boolean;
   inChute: boolean;
   hueOffset: number;
@@ -65,6 +64,7 @@ export function createUnicorn(
     squishX: 1.0,
     squishY: 1.0,
     isGrabbed: false,
+    gripLocked: false,
     isScored: false,
     inChute: false,
     hueOffset: Math.random() * 360,

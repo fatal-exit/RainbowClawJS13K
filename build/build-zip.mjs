@@ -4,6 +4,7 @@ import { Packer } from 'roadroller';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as zlib from 'node:zlib';
+import { execSync } from 'node:child_process';
 
 const MAX_BYTES = 13312;
 
@@ -37,11 +38,12 @@ async function build() {
       unsafe_comps: true,
       unsafe_math: true,
       unsafe_methods: true,
-      booleans: false,
+      booleans: true,
       drop_debugger: true,
       pure_getters: true,
       reduce_vars: true,
       dead_code: true,
+      inline: 3,
     },
     mangle: {
       toplevel: true,
@@ -76,7 +78,7 @@ async function build() {
   }
 
   // 4. Inline into minimal HTML inside dist/
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"><title>Rainbow Claw</title><style>*{margin:0;padding:0;box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden;background:#050508;display:flex;align-items:center;justify-content:center;touch-action:none;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;max-width:100vw;max-height:100vh;aspect-ratio:4/3;object-fit:contain;box-shadow:0 0 50px rgba(0,0,0,0.9)}</style></head><body><canvas id="c" width="400" height="300"></canvas><script>${finalJs}<\/script></body></html>`;
+  const html = `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rainbow Claw</title><style>*{margin:0;box-sizing:border-box}body{width:100vw;height:100vh;overflow:hidden;background:#050508;display:flex;align-items:center;justify-content:center;touch-action:none;user-select:none}canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;width:min(100vw,calc(100vh*4/3));height:min(100vh,calc(100vw*3/4))}</style><canvas id="c" width="400" height="300"></canvas><script>${finalJs}<\/script>`;
 
   const htmlPath = path.join(distDir, 'index.html');
   fs.writeFileSync(htmlPath, html, 'utf-8');
@@ -96,10 +98,41 @@ async function build() {
   if (!fs.existsSync(zipDir)) {
     fs.mkdirSync(zipDir, { recursive: true });
   }
-  fs.writeFileSync(path.join(zipDir, 'game.zip'), zipBuffer);
-  fs.writeFileSync(path.resolve('game.zip'), zipBuffer);
+  const rootZipPath = path.resolve('game.zip');
+  const dirZipPath = path.join(zipDir, 'game.zip');
+  fs.writeFileSync(dirZipPath, zipBuffer);
+  fs.writeFileSync(rootZipPath, zipBuffer);
 
-  const zipBytes = zipBuffer.length;
+  const initialZipBytes = zipBuffer.length;
+  let finalZipBytes = initialZipBytes;
+
+  // 6. Post-process with advzip (AdvanceCOMP)
+  const advzipCmd = findAdvzip();
+  if (advzipCmd) {
+    console.log(`\n🗜️  Running advzip post-processing (${advzipCmd} -z -4 -i 100)...`);
+    try {
+      execSync(`"${advzipCmd}" -z -4 -i 100 "${rootZipPath}"`, { stdio: 'pipe' });
+      fs.copyFileSync(rootZipPath, dirZipPath);
+      finalZipBytes = fs.statSync(rootZipPath).size;
+      const savedBytes = initialZipBytes - finalZipBytes;
+      const pctSaved = ((savedBytes / initialZipBytes) * 100).toFixed(2);
+      console.log(`📦 Before advzip: ${initialZipBytes.toLocaleString()} bytes`);
+      console.log(`📦 After advzip:  ${finalZipBytes.toLocaleString()} bytes (saved ${savedBytes} bytes / ${pctSaved}%)`);
+    } catch (err) {
+      console.warn('⚠️  advzip execution failed, falling back to original zip:', err.message);
+      fs.writeFileSync(rootZipPath, zipBuffer);
+      fs.writeFileSync(dirZipPath, zipBuffer);
+      finalZipBytes = initialZipBytes;
+    }
+  } else {
+    console.warn('\n⚠️  advzip not found in PATH or node_modules. Using default zlib compression.');
+  }
+
+  // 7. Verify resulting zip archive integrity
+  console.log(`🔍 Verifying zip archive integrity...`);
+  verifyZipIntegrity(rootZipPath, advzipCmd);
+
+  const zipBytes = finalZipBytes;
   const remaining = MAX_BYTES - zipBytes;
   const pct = ((zipBytes / MAX_BYTES) * 100).toFixed(1);
 
@@ -193,6 +226,47 @@ function crc32(buf) {
     crc = (crc >>> 8) ^ crcTable[(crc ^ buf[i]) & 0xFF];
   }
   return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+function findAdvzip() {
+  const localBin = path.resolve('node_modules', '.bin', process.platform === 'win32' ? 'advzip.cmd' : 'advzip');
+  if (fs.existsSync(localBin)) {
+    try {
+      execSync(`"${localBin}" -V`, { stdio: 'pipe' });
+      return localBin;
+    } catch {}
+  }
+  try {
+    execSync('advzip -V', { stdio: 'pipe' });
+    return 'advzip';
+  } catch {}
+  try {
+    execSync('npx advzip -V', { stdio: 'pipe' });
+    return 'npx advzip';
+  } catch {}
+  return null;
+}
+
+function verifyZipIntegrity(zipPath, advzipCmd) {
+  if (advzipCmd) {
+    try {
+      execSync(`"${advzipCmd}" -t "${zipPath}"`, { stdio: 'pipe' });
+      console.log(`🛡️  Archive verified via advzip test (-t)!`);
+      return;
+    } catch (e) {
+      throw new Error(`advzip integrity test failed: ${e.message}`);
+    }
+  }
+  try {
+    execSync(`unzip -t "${zipPath}"`, { stdio: 'pipe' });
+    console.log(`🛡️  Archive verified via unzip test (-t)!`);
+    return;
+  } catch {}
+  const data = fs.readFileSync(zipPath);
+  if (data.length < 22 || data.readUInt32LE(0) !== 0x04034b50) {
+    throw new Error(`Invalid ZIP magic header in ${zipPath}`);
+  }
+  console.log(`🛡️  Archive magic header verified!`);
 }
 
 build().catch(err => {

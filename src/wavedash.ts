@@ -23,7 +23,7 @@ export class WavedashService {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private getSdk(): any {
-    return (globalThis as any).Wavedash || (window as any).Wavedash || null;
+    return (globalThis as any).Wavedash || (typeof window !== 'undefined' ? (window as any).Wavedash : null) || null;
   }
 
   public isWavedash(): boolean {

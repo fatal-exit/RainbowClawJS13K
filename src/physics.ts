@@ -39,9 +39,10 @@ export class PhysicsEngine {
   public swingAngVel = 0;     // omega (rad/s)
 
   // Articulated Claw Prongs
-  // Prongs open angle: ~0.75 rad (open) to 0.12 rad (closed)
-  public prongAngle = 0.75;
-  public targetProngAngle = 0.75;
+  // Prongs open angle: ~0.85 rad (open) to 0.10 rad (locked)
+  public prongAngle = 0.85;
+  public targetProngAngle = 0.85;
+  public mechanicalState: 'OPEN' | 'CLOSING' | 'TENSION' | 'LOCKED' = 'OPEN';
 
   // Claw Hub Position
   public hubX = 220;
@@ -60,14 +61,16 @@ export class PhysicsEngine {
   // Callbacks
   public onClawTouchFloor?: () => void;
   public onClawGrabbed?: () => void;
+  public onClawLocked?: () => void;
   public onPlushSlipped?: (u: UnicornPlush) => void;
   public onChuteScore?: (u: UnicornPlush) => void;
 
   public resetCarriage(): void {
     this.state = 'IDLE_AIM';
+    this.mechanicalState = 'OPEN';
     this.cableLength = this.minCableLen;
-    this.prongAngle = 0.75;
-    this.targetProngAngle = 0.75;
+    this.prongAngle = 0.85;
+    this.targetProngAngle = 0.85;
     this.carriageTargetX = 220;
     this.capturedThisDrop = [];
   }
@@ -75,9 +78,34 @@ export class PhysicsEngine {
   public dropClaw(): boolean {
     if (this.state !== 'IDLE_AIM') return false;
     this.state = 'LOWERING';
+    this.mechanicalState = 'OPEN';
     this.stateTimer = 0;
     this.targetProngAngle = 0.85; // Open wide on the plunge!
     return true;
+  }
+
+  public triggerEarlyGrab(): boolean {
+    if (this.state !== 'LOWERING') return false;
+    this.state = 'CLOSING';
+    this.mechanicalState = 'CLOSING';
+    this.stateTimer = 0;
+    this.targetProngAngle = 0.28;
+    if (this.onClawTouchFloor) this.onClawTouchFloor();
+    return true;
+  }
+
+  public lockGrip(): boolean {
+    const caught = this.plushies.filter((p) => p.isGrabbed && !p.gripLocked);
+    if (caught.length > 0 && (this.state === 'RAISING' || this.state === 'CLOSING')) {
+      for (const p of caught) {
+        p.gripLocked = true;
+      }
+      this.mechanicalState = 'LOCKED';
+      this.targetProngAngle = 0.10;
+      if (this.onClawLocked) this.onClawLocked();
+      return true;
+    }
+    return false;
   }
 
   public update(
@@ -165,23 +193,33 @@ export class PhysicsEngine {
 
       if (hitBed) {
         this.state = 'CLOSING';
+        this.mechanicalState = 'CLOSING';
         this.stateTimer = 0;
-        this.targetProngAngle = 0.12; // Clamp inward!
+        this.targetProngAngle = 0.28; // Clamp inward!
         if (this.onClawTouchFloor) this.onClawTouchFloor();
       }
     } else if (this.state === 'CLOSING') {
       // Prongs clamp shut
-      this.prongAngle += (this.targetProngAngle - this.prongAngle) * (12 * dt);
+      this.prongAngle += (this.targetProngAngle - this.prongAngle) * (14 * dt);
 
       if (this.stateTimer >= 0.45) {
         // Evaluate which plushies are caught inside claw grasp!
         this.evaluateGrasp(stats);
         this.state = 'RAISING';
         this.stateTimer = 0;
+        const caught = this.plushies.filter((p) => p.isGrabbed);
+        if (caught.length > 0) {
+          this.mechanicalState = caught.some((p) => p.gripLocked) ? 'LOCKED' : 'TENSION';
+          this.targetProngAngle = this.mechanicalState === 'LOCKED' ? 0.10 : 0.26;
+        } else {
+          this.mechanicalState = 'CLOSING';
+          this.targetProngAngle = 0.20;
+        }
         if (this.onClawGrabbed) this.onClawGrabbed();
       }
     } else if (this.state === 'RAISING') {
       this.cableLength -= winchRaiseSpeed * dt;
+      this.prongAngle += (this.targetProngAngle - this.prongAngle) * (14 * dt);
 
       // Check slip risk during ascent
       this.checkPlushSlipping(dt, stats);
@@ -198,6 +236,7 @@ export class PhysicsEngine {
       for (const u of this.plushies) {
         if (u.isGrabbed) {
           u.isGrabbed = false;
+          u.gripLocked = false;
           u.vx = (Math.random() - 0.5) * 15;
           u.vy = 20;
         }
@@ -205,6 +244,7 @@ export class PhysicsEngine {
 
       if (this.stateTimer >= 1.0) {
         this.state = 'FINISHED';
+        this.mechanicalState = 'OPEN';
       }
     }
 
@@ -232,6 +272,7 @@ export class PhysicsEngine {
       // Check if plush center is within the claw scoop boundary
       if (dx <= clawReach && u.y >= gripYMin && u.y <= gripYMax) {
         u.isGrabbed = true;
+        u.gripLocked = false;
         u.vx = 0;
         u.vy = 0;
       }
@@ -246,6 +287,7 @@ export class PhysicsEngine {
 
     for (const u of this.plushies) {
       if (!u.isGrabbed) continue;
+      if (u.gripLocked) continue;
 
       // Heavy plushies have higher slip probability if grip strength is low
       const weightSlip = (u.mass - 1.0) * 0.12;
@@ -255,9 +297,15 @@ export class PhysicsEngine {
       if (Math.random() < totalSlipProb && stats.gripStrength < 2.0) {
         // Plush slipped!
         u.isGrabbed = false;
+        u.gripLocked = false;
         u.vy = 25;
         u.vx = (Math.random() - 0.5) * 35;
         if (this.onPlushSlipped) this.onPlushSlipped(u);
+
+        if (!this.plushies.some((p) => p.isGrabbed)) {
+          this.mechanicalState = 'OPEN';
+          this.targetProngAngle = 0.85;
+        }
       }
     }
   }
@@ -404,12 +452,11 @@ export class PhysicsEngine {
   }
 
   /**
-   * Render the Claw Machine Cabinet, Rails, Rainbow Claw, Cable, and Chute
+   * Render the Claw Machine Cabinet Background, Rails, Carriage, and Cable
    */
-  public drawMachine(
+  public drawMachineBackground(
     ctx: CanvasRenderingContext2D,
-    time: number,
-    stats: PlayerStats
+    time: number
   ): void {
     // 1. Drop Chute (Left side)
     ctx.fillStyle = '#090a10';
@@ -482,58 +529,175 @@ export class PhysicsEngine {
       ctx.lineTo(x1, y1);
       ctx.stroke();
     }
+  }
 
-    // 5. Articulated Rainbow Claw Head
+  /**
+   * Render the Realistic 3-Prong Arc Claw Head
+   * Features:
+   * - Top central housing / cylindrical collar with 3 joint hinges
+   * - Center vertical tine (middle prong)
+   * - Left and Right curved arc prongs (curving outward then curling inward with hooked tips)
+   * - Rainbow gradient stroke, chrome highlight sheen, 1-bit dithering
+   * - Smooth mechanical state animations: OPEN, CLOSING, TENSION (twitching), LOCKED (clamped + sparks)
+   */
+  public drawClawHead(
+    ctx: CanvasRenderingContext2D,
+    time: number,
+    stats: PlayerStats
+  ): void {
+    const hubX = Math.round(this.hubX);
+    const hubY = Math.round(this.hubY);
+    const hubHue = (time * 200) % 360;
+    const span = stats.clawSpan;
+
     ctx.save();
     ctx.translate(hubX, hubY);
     ctx.rotate(this.swingAngle);
 
-    // Hub Crown / Pulley
-    const hubHue = (time * 200) % 360;
-    ctx.fillStyle = `hsl(${hubHue}, 100%, 65%)`;
+    let angle = this.prongAngle;
+    let tineY = 0;
+    if (this.mechanicalState === 'TENSION') {
+      angle += Math.sin(time * 42) * 0.055 + Math.sin(time * 95) * 0.025;
+      tineY = Math.sin(time * 38) * 1.5;
+    } else if (this.mechanicalState === 'LOCKED') {
+      angle = Math.min(angle, 0.12);
+    }
+
+    const armLen = 20 * span;
+    const tipLen = 14 * span;
+    const tineLen = (24 + tineY) * span;
+
+    // --- A. Center Vertical Tine (Middle Prong) ---
+    ctx.save();
+    ctx.translate(0, 4);
+    const drawTine = () => {
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, tineLen);
+      ctx.lineTo(-3.5 * span, tineLen - 3.5 * span);
+      ctx.moveTo(0, tineLen);
+      ctx.lineTo(3.5 * span, tineLen - 3.5 * span);
+    };
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#05050a';
+    ctx.lineWidth = 4.5;
+    drawTine();
+    ctx.stroke();
+    ctx.strokeStyle = `hsl(${(hubHue + 120) % 360}, 100%, 65%)`;
+    ctx.lineWidth = 2.8;
+    drawTine();
+    ctx.stroke();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.arc(0, 0, 8, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, tineLen - 2);
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(-1, Math.round(tineLen) - 1, 2, 2);
+    ctx.restore();
+
+    // --- B & C. Left and Right Curved Arc Prongs ---
+    const drawProng = (side: -1 | 1) => {
+      ctx.save();
+      ctx.translate(side * 8, 3);
+      ctx.rotate(side * angle);
+      const drawArc = () => {
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(side * -11 * span, armLen * 0.45, side * -8 * span, armLen * 0.8);
+        ctx.quadraticCurveTo(side * -3 * span, armLen + tipLen * 0.5, side * 2.5 * span, armLen + tipLen * 0.6);
+        ctx.lineTo(side * 4.5 * span, armLen + tipLen * 0.42);
+      };
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = '#05050a';
+      ctx.lineWidth = 4.8;
+      drawArc();
+      ctx.stroke();
+      const h = side === -1 ? hubHue + 40 : hubHue + 160;
+      ctx.strokeStyle = `hsl(${h % 360}, 100%, 68%)`;
+      ctx.lineWidth = 2.8;
+      drawArc();
+      ctx.stroke();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(side * -11 * span, armLen * 0.45, side * -8 * span, armLen * 0.8);
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(Math.round(side * -8 * span) - 1, Math.round(armLen * 0.8) - 1, 2, 2);
+      ctx.fillStyle = `hsl(${(h + 180) % 360}, 100%, 75%)`;
+      ctx.beginPath();
+      ctx.arc(side * 4.5 * span, armLen + tipLen * 0.42, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    };
+
+    drawProng(-1);
+    drawProng(1);
+
+    // --- D. Top Central Housing / Cylindrical Collar ---
+    ctx.fillStyle = '#1c1f2b';
+    ctx.fillRect(-4, -12, 8, 4);
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(-4, -12, 8, 4);
+
     ctx.fillStyle = '#050508';
+    ctx.fillRect(-12, -9, 24, 13);
+    ctx.fillStyle = '#8e96ab';
+    ctx.fillRect(-11, -8, 22, 11);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(-9, -7, 18, 2);
+    ctx.fillStyle = '#3a4052';
+    ctx.fillRect(-11, 0, 22, 3);
+
+    const stCol = this.mechanicalState === 'LOCKED' ? '#30ff80' : (this.mechanicalState === 'TENSION' ? '#ffea00' : `hsl(${hubHue}, 100%, 65%)`);
+    ctx.fillStyle = stCol;
     ctx.beginPath();
-    ctx.arc(0, 0, 4, 0, Math.PI * 2);
+    ctx.arc(0, -2.5, 3.5, 0, Math.PI * 2);
     ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(-1, -3.5, 2, 2);
 
-    // Claw Prongs (Left and Right)
-    const armLen = 18 * stats.clawSpan;
-    const tipLen = 14 * stats.clawSpan;
+    ctx.fillStyle = '#d0d6e6';
+    ctx.fillRect(-1.5, 3, 3, this.mechanicalState === 'LOCKED' ? 6 : (this.mechanicalState === 'OPEN' ? 2 : 4));
 
-    // --- LEFT PRONG ---
-    ctx.save();
-    ctx.rotate(-this.prongAngle);
-    ctx.strokeStyle = `hsl(${(hubHue + 40) % 360}, 100%, 65%)`;
-    ctx.lineWidth = 3.5;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(-armLen * 0.5, armLen);
-    // Inward cupped tip
-    ctx.lineTo(2, armLen + tipLen * 0.7);
-    ctx.stroke();
-    ctx.restore();
+    [-8, 0, 8].forEach(hx => {
+      ctx.fillStyle = '#151822';
+      ctx.beginPath();
+      ctx.arc(hx, 3, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(hx, 3, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#050508';
+      ctx.fillRect(hx - 0.5, 2.5, 1, 1);
+    });
 
-    // --- RIGHT PRONG ---
-    ctx.save();
-    ctx.rotate(this.prongAngle);
-    ctx.strokeStyle = `hsl(${(hubHue + 160) % 360}, 100%, 65%)`;
-    ctx.lineWidth = 3.5;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(armLen * 0.5, armLen);
-    // Inward cupped tip
-    ctx.lineTo(-2, armLen + tipLen * 0.7);
-    ctx.stroke();
-    ctx.restore();
+    // --- E. State Juice (Sparks & Laser) ---
+    if (this.mechanicalState === 'LOCKED') {
+      ctx.fillStyle = `hsl(${(time * 500) % 360}, 100%, 75%)`;
+      const s = Math.sin(time * 30) * 4;
+      ctx.fillRect(Math.round(-5 + s), 22, 2, 2);
+      ctx.fillRect(Math.round(5 - s), 22, 2, 2);
+      ctx.fillRect(0, 26, 2, 2);
+    } else if (this.mechanicalState === 'TENSION' && Math.random() < 0.35) {
+      ctx.strokeStyle = '#fff060';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      const jx = (Math.random() - 0.5) * 10;
+      ctx.moveTo(-6 + jx, 18);
+      ctx.lineTo(6 - jx, 20);
+      ctx.stroke();
+    }
 
-    // Aim Laser / Targeting guide when in IDLE_AIM
     if (this.state === 'IDLE_AIM') {
-      ctx.strokeStyle = 'rgba(255, 50, 150, 0.35)';
+      ctx.strokeStyle = 'rgba(255, 50, 150, 0.4)';
       ctx.setLineDash([3, 3]);
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -544,11 +708,14 @@ export class PhysicsEngine {
     }
 
     ctx.restore();
+  }
 
-    // 6. Cabinet Glass Frame & Pit Walls
+  /**
+   * Render the Cabinet Glass Frame and Reflection Streaks
+   */
+  public drawMachineForeground(ctx: CanvasRenderingContext2D): void {
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
-    // Outer enclosure
     ctx.strokeRect(10, 10, 380, 260);
 
     // Glass Reflection Dither Streak
@@ -560,5 +727,18 @@ export class PhysicsEngine {
     ctx.moveTo(45, 20);
     ctx.lineTo(175, 260);
     ctx.stroke();
+  }
+
+  /**
+   * Standalone drawMachine for complete render
+   */
+  public drawMachine(
+    ctx: CanvasRenderingContext2D,
+    time: number,
+    stats: PlayerStats
+  ): void {
+    this.drawMachineBackground(ctx, time);
+    this.drawClawHead(ctx, time, stats);
+    this.drawMachineForeground(ctx);
   }
 }

@@ -9,7 +9,37 @@
 const m2f = (m: number): number => 440 * Math.pow(2, (m - 69) / 12);
 
 // E Phrygian Dominant Scale frequencies
-// Root: E (40, 52, 64, 76), b2: F, 3: G#, 4: A, 5: B, b6: C, b7: D
+// === 32-BAR PATTERNS IN E PHRYGIAN DOMINANT ===
+const bA0 = [40, 0, 40, 41, 0, 40, 44, 0, 40, 0, 40, 41, 0, 44, 45, 44];
+const bA1 = [40, 0, 40, 41, 0, 40, 44, 0, 40, 44, 47, 48, 47, 45, 44, 41];
+const bA3 = [40, 41, 44, 45, 47, 45, 44, 41, 40, 44, 47, 52, 50, 48, 47, 44];
+const bassA = [bA0, bA1, bA0, bA3];
+
+const lA0 = [64, 0, 76, 68, 0, 76, 71, 74, 68, 65, 64, 68, 71, 76, 74, 71];
+const lA1 = [76, 0, 80, 76, 77, 76, 74, 71, 72, 71, 68, 65, 68, 71, 76, 80];
+const lA3 = [80, 83, 80, 76, 74, 76, 74, 71, 68, 71, 68, 65, 64, 68, 71, 76];
+const leadA = [lA0, lA1, lA0, lA3];
+
+const bB0 = [0, 40, 0, 44, 0, 47, 0, 52, 0, 41, 0, 45, 0, 48, 0, 53];
+const bB1 = [0, 44, 0, 48, 0, 52, 0, 56, 40, 44, 47, 52, 48, 45, 41, 38];
+const bB3 = [44, 0, 47, 0, 52, 0, 56, 0, 52, 48, 47, 45, 44, 41, 40, 38];
+const bassB = [bB0, bB1, bB0, bB3];
+
+const lB0 = [64, 68, 71, 76, 68, 71, 76, 80, 71, 76, 80, 83, 76, 80, 83, 88];
+const lB1 = [80, 76, 72, 69, 77, 74, 71, 68, 76, 72, 68, 65, 71, 68, 65, 64];
+const lB3 = [88, 86, 84, 83, 80, 76, 74, 71, 68, 65, 64, 68, 71, 76, 80, 83];
+const leadB = [lB0, lB1, lB0, lB3];
+
+const bC0 = [40, 52, 40, 52, 41, 53, 41, 53, 44, 56, 44, 56, 47, 59, 45, 57];
+const bC1 = [40, 52, 40, 52, 48, 60, 47, 59, 45, 57, 44, 56, 41, 53, 38, 50];
+const bC3 = [52, 50, 48, 47, 45, 44, 41, 40, 44, 47, 52, 56, 59, 56, 52, 44];
+const bassC = [bC0, bC1, bC0, bC3];
+
+const lC0 = [88, 83, 80, 76, 83, 80, 76, 71, 80, 76, 71, 68, 76, 71, 68, 64];
+const lC1 = [64, 76, 80, 88, 65, 77, 81, 89, 68, 80, 84, 92, 71, 83, 87, 95];
+const lC3 = [95, 92, 88, 84, 80, 76, 72, 68, 65, 68, 71, 76, 80, 83, 88, 92];
+const leadC = [lC0, lC1, lC0, lC3];
+
 export class AudioEngine {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
@@ -28,52 +58,6 @@ export class AudioEngine {
 
   // Polyphony voice tracking to avoid audio glitches
   private activeVoices: OscillatorNode[] = [];
-
-  // === 32-BAR PATTERNS IN E PHRYGIAN DOMINANT ===
-  // Section A: Frantic Chip Pop Driving Groove (Bars 0-3, 8-11, 16-19)
-  private readonly bassA = (() => {
-    const b0 = [40, 0, 40, 41, 0, 40, 44, 0, 40, 0, 40, 41, 0, 44, 45, 44];
-    const b1 = [40, 0, 40, 41, 0, 40, 44, 0, 40, 44, 47, 48, 47, 45, 44, 41];
-    const b3 = [40, 41, 44, 45, 47, 45, 44, 41, 40, 44, 47, 52, 50, 48, 47, 44];
-    return [b0, b1, b0, b3];
-  })();
-
-  private readonly leadA = (() => {
-    const l0 = [64, 0, 76, 68, 0, 76, 71, 74, 68, 65, 64, 68, 71, 76, 74, 71];
-    const l1 = [76, 0, 80, 76, 77, 76, 74, 71, 72, 71, 68, 65, 68, 71, 76, 80];
-    const l3 = [80, 83, 80, 76, 74, 76, 74, 71, 68, 71, 68, 65, 64, 68, 71, 76];
-    return [l0, l1, l0, l3];
-  })();
-
-  // Section B: Syncopated Staccato & Harmonic Arpeggios (Bars 4-7, 12-15, 24-27)
-  private readonly bassB = (() => {
-    const b0 = [0, 40, 0, 44, 0, 47, 0, 52, 0, 41, 0, 45, 0, 48, 0, 53];
-    const b1 = [0, 44, 0, 48, 0, 52, 0, 56, 40, 44, 47, 52, 48, 45, 41, 38];
-    const b3 = [44, 0, 47, 0, 52, 0, 56, 0, 52, 48, 47, 45, 44, 41, 40, 38];
-    return [b0, b1, b0, b3];
-  })();
-
-  private readonly leadB = (() => {
-    const l0 = [64, 68, 71, 76, 68, 71, 76, 80, 71, 76, 80, 83, 76, 80, 83, 88];
-    const l1 = [80, 76, 72, 69, 77, 74, 71, 68, 76, 72, 68, 65, 71, 68, 65, 64];
-    const l3 = [88, 86, 84, 83, 80, 76, 74, 71, 68, 65, 64, 68, 71, 76, 80, 83];
-    return [l0, l1, l0, l3];
-  })();
-
-  // Section C: High-Voltage Rainbow Climax & Double-Time Energy (Bars 20-23, 28-31)
-  private readonly bassC = (() => {
-    const b0 = [40, 52, 40, 52, 41, 53, 41, 53, 44, 56, 44, 56, 47, 59, 45, 57];
-    const b1 = [40, 52, 40, 52, 48, 60, 47, 59, 45, 57, 44, 56, 41, 53, 38, 50];
-    const b3 = [52, 50, 48, 47, 45, 44, 41, 40, 44, 47, 52, 56, 59, 56, 52, 44];
-    return [b0, b1, b0, b3];
-  })();
-
-  private readonly leadC = (() => {
-    const l0 = [88, 83, 80, 76, 83, 80, 76, 71, 80, 76, 71, 68, 76, 71, 68, 64];
-    const l1 = [64, 76, 80, 88, 65, 77, 81, 89, 68, 80, 84, 92, 71, 83, 87, 95];
-    const l3 = [95, 92, 88, 84, 80, 76, 72, 68, 65, 68, 71, 76, 80, 83, 88, 92];
-    return [l0, l1, l0, l3];
-  })();
 
   public init(): void {
     if (this.ctx) return;
@@ -188,9 +172,8 @@ export class AudioEngine {
   private getSection(bar: number): { type: 'A' | 'B' | 'C'; subBar: number } {
     const block = Math.floor(bar / 4); // 0 to 7
     const subBar = bar % 4; // 0 to 3
-    // Block map: 0:A, 1:B, 2:A, 3:B, 4:A, 5:C, 6:B, 7:C
-    const blockTypes: Array<'A' | 'B' | 'C'> = ['A', 'B', 'A', 'B', 'A', 'C', 'B', 'C'];
-    return { type: blockTypes[block] || 'A', subBar };
+    const type = ('ABABACBC'[block] || 'A') as 'A' | 'B' | 'C';
+    return { type, subBar };
   }
 
   private scheduleStep(step: number, bar: number, time: number): void {
@@ -205,10 +188,10 @@ export class AudioEngine {
       if (step % 2 === 0) this.synthHat(time, step % 4 === 2 ? 0.06 : 0.025, step % 4 === 2);
       if (step === 0 && subBar === 0 && bar === 0) this.synthCrash(time);
 
-      const bNote = this.bassA[subBar][step];
+      const bNote = bassA[subBar][step];
       if (bNote) this.synthDonkBass(m2f(bNote), time, step % 4 === 0);
 
-      const lNote = this.leadA[subBar][step];
+      const lNote = leadA[subBar][step];
       if (lNote) this.synthPWMLead(m2f(lNote), time, step % 2 === 0);
     } else if (type === 'B') {
       // Syncopated half-time breakbeat
@@ -218,10 +201,10 @@ export class AudioEngine {
         this.synthHat(time, (step === 4 || step === 12) ? 0.05 : 0.02, step === 4 || step === 12);
       }
 
-      const bNote = this.bassB[subBar][step];
+      const bNote = bassB[subBar][step];
       if (bNote) this.synthDonkBass(m2f(bNote), time, step === 0 || step === 8);
 
-      const lNote = this.leadB[subBar][step];
+      const lNote = leadB[subBar][step];
       if (lNote) this.synthPWMLead(m2f(lNote), time, step % 4 === 0);
     } else {
       // Section C: Frantic double-time rave climax!
@@ -230,10 +213,10 @@ export class AudioEngine {
       this.synthHat(time, (step % 4 === 2) ? 0.07 : 0.03, step % 4 === 2);
       if (step === 0 && subBar === 0) this.synthCrash(time);
 
-      const bNote = this.bassC[subBar][step];
+      const bNote = bassC[subBar][step];
       if (bNote) this.synthDonkBass(m2f(bNote), time, true);
 
-      const lNote = this.leadC[subBar][step];
+      const lNote = leadC[subBar][step];
       if (lNote) this.synthPWMLead(m2f(lNote), time, true);
     }
   }

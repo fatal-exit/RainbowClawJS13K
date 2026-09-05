@@ -10,6 +10,7 @@
     "wavedash:push": "npm run build && npx wavedash build push"
   },
   "devDependencies": {
+    "advzip-bin": "^2.0.0",
     "esbuild": "^0.25.0",
     "roadroller": "^2.1.0",
     "terser": "^5.39.0",

@@ -84,6 +84,13 @@ export class Game {
       }
     };
 
+    this.physics.onClawLocked = () => {
+      audio.playGrab();
+      this.particles.addTrauma(0.24);
+      this.particles.emitRainbowBurst(this.physics.hubX, this.physics.hubY + 12, 28, 110);
+      this.particles.emitFloatText(this.physics.hubX, this.physics.hubY - 14, '★ LOCKED! ★', true);
+    };
+
     this.physics.onPlushSlipped = (u) => {
       audio.playSqueak(1);
       this.particles.emitFloatText(u.x, u.y - 10, 'SLIP!', false);
@@ -318,12 +325,18 @@ export class Game {
           return;
         }
 
-        // Direct Touch Drag on Upper Gantry Rail
-        if (py <= 160) {
+        // Direct Touch Drag on Upper Gantry Rail only when aiming
+        if (py <= 160 && this.physics.state === 'IDLE_AIM') {
           this.physics.carriageX = Math.max(
             this.physics.minCarriageX,
             Math.min(this.physics.maxCarriageX, px)
           );
+          return;
+        }
+
+        // Single-tap anywhere in the cabinet to lock/grab during sequence
+        if (this.physics.state === 'RAISING' || this.physics.state === 'CLOSING' || this.physics.state === 'LOWERING') {
+          this.handleDropAction();
         }
       }
     };
@@ -373,11 +386,19 @@ export class Game {
       return;
     }
 
-    if (this.screen === 'PLAY' && this.physics.state === 'IDLE_AIM') {
-      if (this.stats.grabAttemptsLeft > 0) {
-        this.stats.grabAttemptsLeft--;
-        this.physics.dropClaw();
-        audio.playDrop();
+    if (this.screen === 'PLAY') {
+      if (this.physics.state === 'IDLE_AIM') {
+        if (this.stats.grabAttemptsLeft > 0) {
+          this.stats.grabAttemptsLeft--;
+          this.physics.dropClaw();
+          audio.playDrop();
+        }
+      } else if (this.physics.state === 'LOWERING') {
+        if (this.physics.triggerEarlyGrab()) {
+          audio.playGrab();
+        }
+      } else if (this.physics.state === 'RAISING' || this.physics.state === 'CLOSING') {
+        this.physics.lockGrip();
       }
     }
   }
@@ -629,21 +650,44 @@ export class Game {
 
   // --- PLAY SCREEN ---
   private renderPlay(ctx: CanvasRenderingContext2D, time: number): void {
-    // 1. Draw Machine Frame & Cable
-    this.physics.drawMachine(ctx, time, this.stats);
+    // 1. Machine Background (Chute, Top Rail, Carriage, Cable)
+    this.physics.drawMachineBackground(ctx, time);
 
-    // 2. Draw Plush Unicorn Pile in Pit
+    // 2. Free Plush Unicorn Pile in Pit
     for (const u of this.physics.plushies) {
-      drawUnicorn(ctx, u, time);
+      if (!u.isGrabbed) drawUnicorn(ctx, u, time);
     }
 
-    // 3. Draw HUD (Day, Grabs, Score/Quota, Cash)
+    // 3. Realistic 3-Prong Arc Claw Head
+    this.physics.drawClawHead(ctx, time, this.stats);
+
+    // 4. Gripped Plushies (drawn held inside claw grasp)
+    for (const u of this.physics.plushies) {
+      if (u.isGrabbed) drawUnicorn(ctx, u, time);
+    }
+
+    // 5. Cabinet Glass Frame & Reflection Streaks
+    this.physics.drawMachineForeground(ctx);
+
+    // 6. Tension QTE Floating Prompt
+    if (this.physics.mechanicalState === 'TENSION') {
+      const qteHue = (time * 360) % 360;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = '900 11px monospace';
+      ctx.fillStyle = '#050508';
+      ctx.fillText('⚡ TAP TO LOCK! ⚡', this.physics.hubX, this.physics.hubY - 24);
+      ctx.fillStyle = `hsl(${qteHue}, 100%, 75%)`;
+      ctx.fillText('⚡ TAP TO LOCK! ⚡', this.physics.hubX, this.physics.hubY - 25);
+    }
+
+    // 7. Draw HUD (Day, Grabs, Score/Quota, Cash)
     this.renderHUD(ctx, time);
 
-    // 4. Draw Mobile Controls
+    // 8. Draw Mobile Controls
     this.renderMobileControls(ctx);
 
-    // 5. Sound toggle
+    // 9. Sound toggle
     this.renderAudioButton(ctx);
   }
 
@@ -728,16 +772,31 @@ export class Game {
     ctx.font = 'bold 18px monospace';
     ctx.fillText('►', this.btnRight.x + this.btnRight.w / 2, this.btnRight.y + this.btnRight.h / 2);
 
-    // Drop Button
+    // Drop / Grab / QTE Lock Button
     const isDropping = this.physics.state !== 'IDLE_AIM';
-    ctx.fillStyle = isDropping ? '#331a28' : '#e02060';
+    const canLock = (this.physics.state === 'RAISING' || this.physics.state === 'CLOSING') &&
+      this.physics.plushies.some((p) => p.isGrabbed && !p.gripLocked);
+    const isLocked = this.physics.plushies.some((p) => p.isGrabbed && p.gripLocked);
+
+    let btnText = isDropping ? 'GRAB!' : 'DROP CLAW';
+    let btnColor = isDropping ? '#331a28' : '#e02060';
+
+    if (canLock) {
+      btnText = '⚡ LOCK! ⚡';
+      btnColor = Math.floor(this.gameTime * 7) % 2 === 0 ? '#ffea00' : '#e02060';
+    } else if (isLocked) {
+      btnText = 'LOCKED ★';
+      btnColor = '#109850';
+    }
+
+    ctx.fillStyle = btnColor;
     ctx.fillRect(this.btnDrop.x, this.btnDrop.y, this.btnDrop.w, this.btnDrop.h);
     ctx.strokeStyle = '#ffffff';
     ctx.strokeRect(this.btnDrop.x, this.btnDrop.y, this.btnDrop.w, this.btnDrop.h);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 13px monospace';
+    ctx.fillStyle = canLock && Math.floor(this.gameTime * 7) % 2 === 0 ? '#050508' : '#ffffff';
+    ctx.font = 'bold 12px monospace';
     ctx.fillText(
-      isDropping ? 'GRAB!' : 'DROP CLAW',
+      btnText,
       this.btnDrop.x + this.btnDrop.w / 2,
       this.btnDrop.y + this.btnDrop.h / 2
     );
