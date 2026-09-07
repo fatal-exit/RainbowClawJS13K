@@ -146,6 +146,7 @@ export class Game {
       quota: getDayQuota(1),
       grabAttemptsMax: 5,
       grabAttemptsLeft: 5,
+      rerollCost: 2,
 
       gripStrength: 1.0,
       clawSpan: 1.0,
@@ -174,8 +175,8 @@ export class Game {
   /**
    * Refill the prize pit with plushies based on player luck and upgrades
    */
-  public restockPit(count = 24): void {
-    this.physics.plushies = [];
+  public restockPit(count = 24, clear = true): void {
+    if (clear) this.physics.plushies = [];
     for (let i = 0; i < count; i++) {
       const variety = this.pickRandomVariety(this.stats.rarityLuck);
       const isGolden = Math.random() < this.stats.goldenChance;
@@ -255,15 +256,7 @@ export class Game {
           if (inBox(card, px, py)) {
             if (!card.item.purchased && this.stats.cash >= card.item.cost) {
               applyShopPurchase(card.item, this.stats);
-              if (card.item.id === 'plush_overflow') {
-                for (let k = 0; k < 6; k++) {
-                  const variety = this.pickRandomVariety(this.stats.rarityLuck);
-                  const isGolden = Math.random() < this.stats.goldenChance;
-                  const x = 90 + Math.random() * (this.physics.pitRightX - 100);
-                  const y = 140 + Math.random() * (this.physics.pitFloorY - 150);
-                  this.physics.plushies.push(createUnicorn(variety, x, y, isGolden));
-                }
-              }
+              if (card.item.id === 'plush_overflow') this.restockPit(6, false);
               card.item.purchased = true;
               audio.playCoin();
               this.particles.emitRainbowBurst(card.x + card.w / 2, card.y + card.h / 2, 20, 80);
@@ -275,8 +268,9 @@ export class Game {
         }
 
         if (inBox(this.btnReroll, px, py)) {
-          if (this.stats.cash >= 2) {
-            this.stats.cash -= 2;
+          if (this.stats.cash >= this.stats.rerollCost) {
+            this.stats.cash -= this.stats.rerollCost;
+            this.stats.rerollCost += 1;
             this.shopOffer = generateShopOffer(this.stats);
             audio.playCoin();
           }
@@ -329,23 +323,12 @@ export class Game {
   }
 
   private handleDropAction(): void {
-    if (this.screen === 'TITLE') {
-      audio.start();
-      this.screen = 'PLAY';
-      audio.playUI();
+    if (this.screen !== 'PLAY') {
+      this.handleConfirmAction();
       return;
     }
 
-    if (this.screen === 'SCORING') {
-      if (this.scoringStep >= 4) {
-        if (this.quotaBeaten) this.openShop();
-        else this.screen = 'GAMEOVER';
-      }
-      return;
-    }
-
-    if (this.screen === 'PLAY') {
-      if (this.physics.state === 'IDLE_AIM') {
+    if (this.physics.state === 'IDLE_AIM') {
         if (this.stats.grabAttemptsLeft > 0) {
           this.stats.grabAttemptsLeft--;
           this.physics.dropClaw();
@@ -358,7 +341,6 @@ export class Game {
       } else if (this.physics.state === 'RAISING' || this.physics.state === 'CLOSING') {
         this.physics.lockGrip();
       }
-    }
   }
 
   private handleConfirmAction(): void {
@@ -410,9 +392,10 @@ export class Game {
     const finalTotal = this.stats.score + this.targetScore;
     this.quotaBeaten = finalTotal >= this.stats.quota;
 
-    // Calculate cash earned
+    // Calculate cash earned (base $4 + unused grabs + capped surplus bounty)
     if (this.quotaBeaten) {
-      this.cashEarned = 4 + this.stats.grabAttemptsLeft + Math.floor((finalTotal - this.stats.quota) / 150);
+      const surplusBounty = Math.min(5, Math.floor((finalTotal - this.stats.quota) / 250));
+      this.cashEarned = 4 + this.stats.grabAttemptsLeft + surplusBounty;
     } else {
       this.cashEarned = 0;
     }
@@ -863,7 +846,7 @@ export class Game {
       );
     }
 
-    drawBtn(ctx, this.btnReroll, this.stats.cash >= 2 ? '#252a3b' : '#141620', 'REROLL ($2)');
+    drawBtn(ctx, this.btnReroll, this.stats.cash >= this.stats.rerollCost ? '#252a3b' : '#141620', `REROLL ($${this.stats.rerollCost})`);
     drawBtn(ctx, this.btnNextDay, '#00aa55', 'NEXT DAY ►');
   }
 
@@ -878,8 +861,7 @@ export class Game {
 
     ctx.font = 'bold 10px monospace';
     ctx.fillStyle = '#8a90a6';
-    ctx.textAlign = 'left';
-    ([['RANK', 45], ['PLAYER', 110], ['DAY', 240], ['SCORE', 310]] as const).forEach(([t, x]) => ctx.fillText(t, x, 60));
+    for (const [t, x] of [['RANK', 45], ['PLAYER', 110], ['DAY', 240], ['SCORE', 310]] as const) ctx.fillText(t, x, 60);
     ctx.strokeStyle = '#222634';
     ctx.beginPath();
     ctx.moveTo(40, 68);

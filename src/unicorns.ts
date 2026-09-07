@@ -15,7 +15,7 @@ export const UNICORN_VARIETIES: UnicornVariety[] = [
   [2, 'Bubble Dream', 25, 11, 1.1],
   [3, 'Sunset Velvet', 45, 11.5, 1.2],
   [4, 'Cyber Chrome', 75, 12, 1.3],
-  [5, 'Shadow Twilight', 120, 12.5, 1.4],
+  [5, 'Lilac Twilight', 120, 12.5, 1.4],
   [6, 'Solar Radiant', 200, 13, 1.5],
   [7, 'Prism Alicorn', 350, 14, 1.6],
 ].map(([rank, name, baseChips, radius, weight]) => ({
@@ -91,8 +91,8 @@ export function drawUnicorn(
   ctx.rotate(u.angle);
   ctx.scale(u.squishX, u.squishY);
 
-  const r = u.radius, rank = u.variety.rank, isDark = rank === 5;
-  const bodyCol = isDark ? '#141622' : '#ffffff';
+  const r = u.radius, rank = u.variety.rank;
+  const bodyCol = '#ffffff';
   const rainbowHue = (time * 180 + u.hueOffset) % 360;
 
   // 1. Rainbow / Golden Aura
@@ -124,7 +124,7 @@ export function drawUnicorn(
   ctx.bezierCurveTo(r * 0.2, r * 0.45, r * 0.1, r * 0.2, 0, 0);
   ctx.fillStyle = (rank === 7 || rank === 1 || rainbowMode)
     ? `hsl(${(rainbowHue + 30) % 360}, 90%, 68%)`
-    : (isDark ? '#524570' : '#ff70a5');
+    : (rank === 5 ? '#8e44ad' : '#ff70a5');
   ctx.fill();
   ctx.lineWidth = 1.3;
   ctx.stroke();
@@ -168,10 +168,10 @@ export function drawUnicorn(
   };
 
   // 3. Back Legs & Hooves (Recessed)
-  drawLegs(-0.35, 0.25, 0.25, isDark ? '#0b0d14' : '#dbe0ee', isDark ? '#050508' : '#222634');
+  drawLegs(-0.35, 0.25, 0.25, '#dbe0ee', '#222634');
 
   // 4. Far Ear
-  drawTri([-r * 0.22, -r * 0.55, -r * 0.28, -r * 0.98, -r * 0.1, -r * 0.7], isDark ? '#1c2030' : '#e2e7f2');
+  drawTri([-r * 0.22, -r * 0.55, -r * 0.28, -r * 0.98, -r * 0.1, -r * 0.7], '#e2e7f2');
 
   // 5. Flowing Mane (Behind neck crest)
   ctx.save();
@@ -251,14 +251,14 @@ export function drawUnicorn(
   }
 
   // 8. Front Legs & Hooves (Foreground)
-  drawLegs(-0.48, 0.12, 0.22, bodyCol, isDark ? '#ffffff' : '#222634');
+  drawLegs(-0.48, 0.12, 0.22, bodyCol, '#222634');
 
   // 9. Near Equine Ear
   drawTri([-r * 0.28, -r * 0.54, -r * 0.36, -r * 0.95, -r * 0.16, -r * 0.68], bodyCol, '#050508', 1.3);
-  drawTri([-r * 0.28, -r * 0.6, -r * 0.33, -r * 0.88, -r * 0.2, -r * 0.7], isDark ? '#262a3d' : '#ffb6c1', '');
+  drawTri([-r * 0.28, -r * 0.6, -r * 0.33, -r * 0.88, -r * 0.2, -r * 0.7], '#ffb6c1', '');
 
   // 10. Nostril
-  ctx.fillStyle = isDark ? '#ffffff' : '#050508';
+  ctx.fillStyle = '#050508';
   ctx.fillRect(-r * 0.76, -r * 0.16, 1.6, 1.6);
 
   // 11. Eye
@@ -270,13 +270,13 @@ export function drawUnicorn(
     ctx.lineWidth = 1;
     ctx.strokeRect(eyeX - 3, eyeY - 2.5, 9, 4.5);
   } else if (rank === 2) {
-    ctx.strokeStyle = isDark ? '#ffffff' : '#050508';
+    ctx.strokeStyle = '#050508';
     ctx.lineWidth = 1.6;
     ctx.beginPath();
     ctx.arc(eyeX, eyeY, eyeR, 3.45, 6.0);
     ctx.stroke();
   } else {
-    ctx.fillStyle = isDark ? '#ffffff' : '#050508';
+    ctx.fillStyle = '#050508';
     ctx.beginPath();
     ctx.ellipse(eyeX, eyeY, eyeR, eyeR * 1.1, -0.05, 0, 6.28);
     ctx.fill();
@@ -290,7 +290,7 @@ export function drawUnicorn(
   }
 
   // Cheek blush
-  if (!isDark && rank !== 4) {
+  if (rank !== 4) {
     ctx.fillStyle = 'rgba(255, 120, 160, 0.4)';
     ctx.beginPath();
     ctx.ellipse(eyeX + 1, eyeY + r * 0.25, r * 0.16, r * 0.08, 0, 0, 6.28);

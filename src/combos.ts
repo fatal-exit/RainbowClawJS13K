@@ -81,22 +81,22 @@ function evaluateFiveOrFewer(
   } else if (counts[0] === 3 && counts[1] === 2) {
     [comboName, subTitle, baseChips, baseMult] = ['Full Stable', 'Full House!', 80, 4.0];
   } else if (hand.length === 5 && uniqueCount === 5) {
-    const isConsecutive = isStraight(sortedRanks);
+    const j = jokers;
     if (isConsecutive && isStraight([...ranks].reverse())) {
-      [comboName, subTitle, baseChips, baseMult] = ['Descending Rainbow', 'High-to-Low Straight!', 120 + jokers.straightBonusChips, 5.5 * jokers.straightBonusMult];
+      [comboName, subTitle, baseChips, baseMult] = ['Descending Rainbow', 'High-to-Low Straight!', 120 + j.straightBonusChips, 5.5 * j.straightBonusMult];
     } else if (isConsecutive && isStraight(ranks)) {
-      [comboName, subTitle, baseChips, baseMult] = ['Ascending Rainbow', 'Low-to-High Straight!', 100 + jokers.straightBonusChips, 5.0 * jokers.straightBonusMult];
+      [comboName, subTitle, baseChips, baseMult] = ['Ascending Rainbow', 'Low-to-High Straight!', 100 + j.straightBonusChips, 5 * j.straightBonusMult];
     } else if (isConsecutive) {
-      [comboName, subTitle, baseChips, baseMult] = ['Prism Straight', 'Straight 5-in-a-row!', 90 + jokers.straightBonusChips, 4.5 * jokers.straightBonusMult];
+      [comboName, subTitle, baseChips, baseMult] = ['Prism Straight', 'Straight 5-in-a-row!', 90 + j.straightBonusChips, 4.5 * j.straightBonusMult];
     } else {
-      [comboName, subTitle, baseChips, baseMult] = ['Prism Spectrum', 'All 5 Unique Varieties!', 85, 4.0 + jokers.spectrumBonusMult];
+      [comboName, subTitle, baseChips, baseMult] = ['Prism Spectrum', 'All 5 Unique Varieties!', 85, 4 + j.spectrumBonusMult];
     }
   } else if (counts[0] === 3) {
     [comboName, subTitle, baseChips, baseMult] = ['Triple Crown', '3 of a Kind!', 60, 3.2];
   } else if (counts[0] === 2 && counts[1] === 2) {
-    [comboName, subTitle, baseChips, baseMult] = ['Twin Pairs', 'Two Pairs!', 40, 2.5 + jokers.pairBonusMult * 0.5];
+    [comboName, subTitle, baseChips, baseMult] = ['Twin Pairs', 'Two Pairs!', 40, 2.5 + j.pairBonusMult * 0.5];
   } else if (counts[0] === 2) {
-    [comboName, subTitle, baseChips, baseMult] = ['Twin Horns', 'One Pair!', 25, 2.0 + jokers.pairBonusMult];
+    [comboName, subTitle, baseChips, baseMult] = ['Twin Horns', 'One Pair!', 25, 2 + j.pairBonusMult];
   } else if (hand.length >= 3 && isStraight(sortedRanks)) {
     [comboName, subTitle, baseChips, baseMult] = ['Mini Rainbow', `${hand.length}-Straight!`, 30 + hand.length * 10, 2.0 + hand.length * 0.4];
   }

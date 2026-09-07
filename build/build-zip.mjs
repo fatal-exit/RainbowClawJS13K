@@ -81,7 +81,7 @@ async function build() {
     console.warn('⚠️ Roadroller fallback:', err);
   }
 
-  const html = `<!doctype html><meta name=viewport content=width=device-width,initial-scale=1><title>Rainbow Claw</title><style>body{margin:0;height:100vh;overflow:hidden;background:#050508;display:grid;place-items:center;touch-action:none}canvas{aspect-ratio:4/3;width:min(100vw,calc(100vh*4/3));image-rendering:pixelated}</style><canvas id=c></canvas><script>${finalJs}<\/script>`;
+  const html = `<!doctype html><meta name=viewport content=width=device-width><title>Rainbow Claw</title><style>body{margin:0;height:100vh;overflow:hidden;background:#050508;display:grid;place-items:center;touch-action:none}canvas{aspect-ratio:4/3;width:min(100vw,calc(100vh*4/3));image-rendering:pixelated}</style><canvas id=c></canvas><script>${finalJs}<\/script>`;
 
   const htmlPath = path.join(distDir, 'index.html');
   fs.writeFileSync(htmlPath, html, 'utf-8');
@@ -114,9 +114,9 @@ async function build() {
   const advzipTool = await findAdvzip();
   if (advzipTool) {
     const displayName = advzipTool.args.length > 0 ? `${advzipTool.bin} ${advzipTool.args.join(' ')}` : advzipTool.bin;
-    console.log(`\n🗜️  Running advzip post-processing (${displayName} -z -4 -i 500)...`);
+    console.log(`\n🗜️  Running advzip post-processing (${displayName} -z -4 -i 1000)...`);
     try {
-      execFileSync(advzipTool.bin, [...advzipTool.args, '-z', '-4', '-i', '500', rootZipPath], { stdio: 'pipe' });
+      execFileSync(advzipTool.bin, [...advzipTool.args, '-z', '-4', '-i', '1000', rootZipPath], { stdio: 'pipe' });
       fs.copyFileSync(rootZipPath, dirZipPath);
       finalZipBytes = fs.statSync(rootZipPath).size;
       const savedBytes = initialZipBytes - finalZipBytes;
