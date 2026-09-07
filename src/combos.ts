@@ -62,6 +62,7 @@ function evaluateFiveOrFewer(
   hand: UnicornPlush[],
   jokers: ActiveJokers
 ): ComboResult {
+  const j = jokers;
   const ranks = hand.map((u) => u.variety.rank);
   const rankCounts = new Map<number, number>();
   for (const r of ranks) {
@@ -71,6 +72,7 @@ function evaluateFiveOrFewer(
   const counts = Array.from(rankCounts.values()).sort((a, b) => b - a);
   const sortedRanks = [...ranks].sort((a, b) => a - b);
   const uniqueCount = rankCounts.size;
+  const isConsecutive = isStraight(sortedRanks);
 
   let [comboName, subTitle, baseChips, baseMult] = ['High Plush', 'Single catch', 10, 1.0];
 
@@ -81,7 +83,6 @@ function evaluateFiveOrFewer(
   } else if (counts[0] === 3 && counts[1] === 2) {
     [comboName, subTitle, baseChips, baseMult] = ['Full Stable', 'Full House!', 80, 4.0];
   } else if (hand.length === 5 && uniqueCount === 5) {
-    const j = jokers;
     if (isConsecutive && isStraight([...ranks].reverse())) {
       [comboName, subTitle, baseChips, baseMult] = ['Descending Rainbow', 'High-to-Low Straight!', 120 + j.straightBonusChips, 5.5 * j.straightBonusMult];
     } else if (isConsecutive && isStraight(ranks)) {
@@ -107,8 +108,8 @@ function evaluateFiveOrFewer(
     plushChips += u.variety.baseChips * (u.isGolden ? 5 : 1);
   }
 
-  const totalChips = plushChips + baseChips + jokers.flatChips;
-  const totalMult = (baseMult + jokers.flatMult) * jokers.xMult;
+  const totalChips = plushChips + baseChips + j.flatChips;
+  const totalMult = (baseMult + j.flatMult) * j.xMult;
   const finalScore = Math.round(totalChips * totalMult);
 
   return {
