@@ -15,8 +15,8 @@ export interface LeaderboardEntry {
   day: number;
 }
 
-const LOCAL_STORAGE_KEY = 'rainbowclaw_highscore_v1';
-const LOCAL_LEADERBOARD_KEY = 'rainbowclaw_lb_v1';
+const LOCAL_STORAGE_KEY = 'rc_hs';
+const LOCAL_LEADERBOARD_KEY = 'rc_lb';
 
 export class WavedashService {
   private boardId: string | null = null;
