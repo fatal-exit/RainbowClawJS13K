@@ -16,7 +16,7 @@ export interface LeaderboardEntry {
 }
 
 const LOCAL_STORAGE_KEY = 'rc_hs';
-const LOCAL_LEADERBOARD_KEY = 'rc_lb';
+
 
 export class WavedashService {
   private boardId: string | null = null;
@@ -60,15 +60,15 @@ export class WavedashService {
         const u = sdk.getUser();
         if (u) {
           return {
-            userId: u.id || u.userId || 'clawmaster',
-            username: u.username || u.name || 'ClawMaster',
+            userId: u.id || u.userId || '',
+            username: u.username || u.name || '',
           };
         }
       } catch {
         /* fall through */
       }
     }
-    return { userId: 'local', username: 'ClawMaster' };
+    return { userId: '', username: '' };
   }
 
   public getLocalHighScore(): number {
@@ -105,24 +105,13 @@ export class WavedashService {
           return entries.map((e, i) => ({
             rank: e.globalRank || i + 1,
             score: e.score || 0,
-            name: e.username || 'UnicornHunter',
+            name: e.username || e.name || '',
             day: e.extraData || 1,
           }));
         }
       } catch { /* fallback */ }
     }
-
-    try {
-      const stored = localStorage.getItem(LOCAL_LEADERBOARD_KEY);
-      if (stored) return JSON.parse(stored);
-    } catch { /* ignore */ }
-    const defs: [string, number, number][] = [
-      ['ArcadeAce', 8500, 5],
-      ['PrismQueen', 5400, 4],
-      ['ClawMaster', 2800, 3],
-      ['NeonPony', 1200, 2],
-    ];
-    return defs.map(([name, score, day], i) => ({ rank: i + 1, name, score, day }));
+    return [];
   }
 
   public async submitScore(score: number, day: number): Promise<void> {
@@ -138,19 +127,6 @@ export class WavedashService {
         if (id) await sdk.uploadLeaderboardScore(id, score, true);
       } catch { /* ignore */ }
     }
-
-    try {
-      const top = await this.fetchLeaderboardTop(8);
-      const { username } = this.getPlayer();
-      const e = top.find((x) => x.name === username);
-      if (e) {
-        if (score > e.score) { e.score = score; e.day = day; }
-      } else {
-        top.push({ rank: 0, name: username, score, day });
-      }
-      top.sort((a, b) => b.score - a.score).forEach((x, i) => { x.rank = i + 1; });
-      localStorage.setItem(LOCAL_LEADERBOARD_KEY, JSON.stringify(top.slice(0, 8)));
-    } catch { /* ignore */ }
   }
 }
 

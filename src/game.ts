@@ -228,7 +228,7 @@ export class Game {
       }
 
       if (this.screen === 'TITLE') {
-        if (px >= 130 && px <= 270 && py >= 240 && py <= 275) {
+        if (wavedash.isWavedash() && px >= 130 && px <= 270 && py >= 240 && py <= 275) {
           this.openLeaderboard();
         } else {
           audio.start();
@@ -355,7 +355,10 @@ export class Game {
       }
     } else if (this.screen === 'SHOP') {
       this.startNextDay();
-    } else if (this.screen === 'GAMEOVER' || this.screen === 'LEADERBOARD') {
+    } else if (this.screen === 'LEADERBOARD') {
+      this.screen = 'TITLE';
+      audio.playUI();
+    } else if (this.screen === 'GAMEOVER') {
       this.resetGame();
       this.screen = 'PLAY';
     }
@@ -557,7 +560,9 @@ export class Game {
     ctx.fillStyle = '#7a8095';
     ctx.fillText('Desktop: Arrows/AD to Move • Space/S to Drop', 200, 226);
 
-    drawBtn(ctx, { x: 130, y: 246, w: 140, h: 30 }, '#1c1f2b', '★ LEADERBOARD ★');
+    if (wavedash.isWavedash()) {
+      drawBtn(ctx, { x: 130, y: 246, w: 140, h: 30 }, '#1c1f2b', '★ LEADERBOARD ★');
+    }
     this.renderAudioButton(ctx);
   }
 
@@ -870,15 +875,20 @@ export class Game {
 
     const list = this.leaderboard;
 
-    for (let i = 0; i < Math.min(6, list.length); i++) {
-      const entry = list[i];
-      const ry = 88 + i * 26;
+    if (list.length === 0) {
+      ctx.fillStyle = '#8a90a6';
+      ctx.fillText('NO SCORES YET', 200, 140);
+    } else {
+      for (let i = 0; i < Math.min(6, list.length); i++) {
+        const entry = list[i];
+        const ry = 88 + i * 26;
 
-      ctx.fillStyle = i === 0 ? '#ffec40' : '#ffffff';
-      ctx.fillText(`#${entry.rank}`, 45, ry);
-      ctx.fillText(entry.name, 110, ry);
-      ctx.fillText(`Day ${entry.day}`, 240, ry);
-      ctx.fillText(`${entry.score}`, 310, ry);
+        ctx.fillStyle = i === 0 ? '#ffec40' : '#ffffff';
+        ctx.fillText(`#${entry.rank}`, 45, ry);
+        ctx.fillText(entry.name || '—', 110, ry);
+        ctx.fillText(`Day ${entry.day}`, 240, ry);
+        ctx.fillText(`${entry.score}`, 310, ry);
+      }
     }
 
     ctx.textAlign = 'center';
