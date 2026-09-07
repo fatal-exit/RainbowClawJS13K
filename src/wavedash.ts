@@ -106,7 +106,7 @@ export class WavedashService {
             rank: e.globalRank || i + 1,
             score: e.score || 0,
             name: e.username || e.name || '',
-            day: e.extraData || 1,
+            day: Number(e.metadata?.day ?? e.metadata?.extraData ?? e.extraData ?? 1),
           }));
         }
       } catch { /* fallback */ }
@@ -124,7 +124,7 @@ export class WavedashService {
     if (sdk?.uploadLeaderboardScore) {
       try {
         const id = await this.ensureBoard();
-        if (id) await sdk.uploadLeaderboardScore(id, score, true);
+        if (id) await sdk.uploadLeaderboardScore(id, score, true, undefined, { day, extraData: day });
       } catch { /* ignore */ }
     }
   }

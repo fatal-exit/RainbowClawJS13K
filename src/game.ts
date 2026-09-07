@@ -485,12 +485,14 @@ export class Game {
         this.scoringStep = 4;
         this.scoringTimer = 0;
 
+        const currentTotal = this.stats.score + this.displayedScore;
+        wavedash.submitScore(currentTotal, this.stats.day);
+
         if (this.quotaBeaten) {
           audio.playQuotaSuccess();
           this.particles.emitConfetti(400);
         } else {
           audio.playGameOver();
-          wavedash.submitScore(this.stats.score + this.displayedScore, this.stats.day);
         }
       }
     }
