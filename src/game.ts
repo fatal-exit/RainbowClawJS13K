@@ -648,7 +648,8 @@ export class Game {
     if (this.dayHaul.length > 0) {
       ctx.fillStyle = '#a0a5b8';
       ctx.font = '9px monospace';
-      ctx.fillText(`HAUL: ${this.dayHaul.length} plush`, 16, 132);
+      ctx.textAlign = 'center';
+      ctx.fillText(`HAUL: ${this.dayHaul.length} plush`, 46, 119);
     }
   }
 
@@ -658,12 +659,13 @@ export class Game {
 
     drawBtn(ctx, { x: 10, y: 238, w: 380, h: 60 }, '#0a0c12', '');
 
-    ctx.fillStyle = '#6a7490';
-    ctx.font = 'bold 9px monospace';
-    ctx.fillText('ARCADE CONTROLS: ◄ MOVE ► & DROP', 180, 265);
-
     drawBtn(ctx, this.btnLeft, this.inputDir === -1 ? '#3a3f55' : '#141620', '◄', '#fff', 'bold 18px monospace');
     drawBtn(ctx, this.btnRight, this.inputDir === 1 ? '#3a3f55' : '#141620', '►', '#fff', 'bold 18px monospace');
+
+    ctx.fillStyle = '#6a7490';
+    ctx.font = 'bold 9px monospace';
+    ctx.fillText('ARCADE CONTROLS', 204, 259);
+    ctx.fillText('◄ MOVE ► & DROP', 204, 275);
 
     const isDropping = this.physics.state !== 'IDLE_AIM';
     const canLock = (this.physics.state === 'RAISING' || this.physics.state === 'CLOSING') &&
